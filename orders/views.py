@@ -1,6 +1,5 @@
 from decimal import Decimal
 
-from django.conf import settings
 from django.contrib import messages
 from django.shortcuts import get_object_or_404, redirect, render
 
@@ -58,7 +57,6 @@ def checkout(request, slug):
         "product": product,
         "form": form,
         "shipping_amount": form.shipping_amount(),
-        "default_currency": settings.DEFAULT_CURRENCY,
     }
     return render(request, "orders/checkout.html", context)
 

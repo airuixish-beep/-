@@ -1,7 +1,7 @@
 from decimal import Decimal
 from unittest.mock import patch
 
-from django.test import RequestFactory, TestCase, override_settings
+from django.test import TestCase, override_settings
 
 from orders.models import Order
 from products.models import Product
@@ -12,7 +12,6 @@ from .services import StripeService
 
 class StripeWebhookTests(TestCase):
     def setUp(self):
-        self.factory = RequestFactory()
         self.product = Product.objects.create(
             name="Webhook Product",
             slug="webhook-product",

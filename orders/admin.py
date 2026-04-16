@@ -1,4 +1,4 @@
-from django.contrib import admin
+from django.contrib import admin, messages
 from django.utils import timezone
 
 from shipping.models import Shipment
@@ -24,9 +24,9 @@ def create_easypost_shipment(modeladmin, request, queryset):
         try:
             EasyPostService.create_shipment(shipment)
         except ShippingConfigurationError as exc:
-            modeladmin.message_user(request, f"{order.order_number}: {exc}", level="error")
+            modeladmin.message_user(request, f"{order.order_number}: {exc}", level=messages.ERROR)
         except Exception as exc:
-            modeladmin.message_user(request, f"{order.order_number}: 创建发货单失败 - {exc}", level="error")
+            modeladmin.message_user(request, f"{order.order_number}: 创建发货单失败 - {exc}", level=messages.ERROR)
         else:
             order.fulfillment_status = Order.FulfillmentStatus.SHIPPED
             order.status = Order.Status.SHIPPED

@@ -26,6 +26,14 @@ class PaymentGatewayError(Exception):
     pass
 
 
+def _stripe_object_to_dict(value):
+    if hasattr(value, "to_dict_recursive"):
+        return value.to_dict_recursive()
+    if isinstance(value, dict):
+        return value
+    return dict(value)
+
+
 class StripeService:
     @staticmethod
     def create_checkout_session(payment, request):
@@ -57,7 +65,7 @@ class StripeService:
         payment.checkout_token_or_session_id = session.id
         payment.approval_url = session.url or ""
         payment.status = Payment.Status.REQUIRES_ACTION
-        payment.raw_payload = session.to_dict_recursive()
+        payment.raw_payload = _stripe_object_to_dict(session)
         payment.save(update_fields=["checkout_token_or_session_id", "approval_url", "status", "raw_payload", "updated_at"])
         return session.url
 
@@ -70,16 +78,17 @@ class StripeService:
 
         stripe.api_key = settings.STRIPE_SECRET_KEY
         event = stripe.Webhook.construct_event(payload=payload, sig_header=signature, secret=settings.STRIPE_WEBHOOK_SECRET)
+        event_data = _stripe_object_to_dict(event)
         payment_event, created = PaymentEvent.objects.get_or_create(
             provider=Payment.Provider.STRIPE,
-            event_id=event["id"],
-            defaults={"event_type": event["type"], "payload": event},
+            event_id=event_data["id"],
+            defaults={"event_type": event_data["type"], "payload": event_data},
         )
         if not created:
             return payment_event, False
 
-        if event["type"] == "checkout.session.completed":
-            session = event["data"]["object"]
+        if event_data["type"] == "checkout.session.completed":
+            session = event_data["data"]["object"]
             payment = Payment.objects.select_related("order").get(checkout_token_or_session_id=session["id"])
             payment.status = Payment.Status.PAID
             payment.external_payment_id = session.get("payment_intent", "")
