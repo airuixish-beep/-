@@ -1,5 +1,5 @@
 import json
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 
 from django.conf import settings
 from django.urls import reverse
@@ -48,7 +48,7 @@ class StripeService:
                     "quantity": 1,
                     "price_data": {
                         "currency": payment.currency.lower(),
-                        "unit_amount": int((payment.amount * Decimal("100")).quantize(Decimal("1"))),
+                        "unit_amount": int((payment.amount * Decimal("100")).quantize(Decimal("1"), rounding=ROUND_HALF_UP)),
                         "product_data": {"name": f"Order {payment.order.order_number}"},
                     },
                 }

@@ -35,13 +35,16 @@ class Payment(models.Model):
 
 class PaymentEvent(models.Model):
     provider = models.CharField(max_length=20, choices=Payment.Provider.choices)
-    event_id = models.CharField(max_length=120, unique=True)
+    event_id = models.CharField(max_length=120)
     event_type = models.CharField(max_length=120)
     payload = models.JSONField(default=dict, blank=True)
     processed_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ["-processed_at"]
+        constraints = [
+            models.UniqueConstraint(fields=["provider", "event_id"], name="uniq_payment_event_provider_event_id"),
+        ]
 
     def __str__(self):
         return f"{self.provider} - {self.event_type}"

@@ -61,8 +61,16 @@
             {% endif %}
           </div>
           <h3 class="text-lg text-xuanor-cream">{{ product.name }}</h3>
+          {% if product.price %}
+            <p class="mt-2 text-base text-xuanor-cream">{{ product.currency }} {{ product.price }}</p>
+          {% endif %}
           <p class="mt-2 text-sm leading-6 text-xuanor-muted">{{ product.short_description }}</p>
-          <a href="{{ product.get_absolute_url }}" class="mt-5 inline-block text-sm text-xuanor-gold hover:opacity-80">查看详情</a>
+          <div class="mt-5 flex flex-wrap gap-4 text-sm">
+            <a href="{{ product.get_absolute_url }}" class="text-xuanor-gold hover:opacity-80">查看详情</a>
+            {% if product.can_purchase %}
+              <a href="/orders/checkout/{{ product.slug }}/" class="text-xuanor-cream hover:text-xuanor-gold">立即购买</a>
+            {% endif %}
+          </div>
         </article>
       {% empty %}
         <div class="rounded-[1.5rem] border border-white/10 bg-white/[0.02] p-8 text-sm text-xuanor-muted sm:col-span-2 xl:col-span-4">

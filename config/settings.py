@@ -118,7 +118,7 @@ SITE_TITLE = "XUANOR | Quiet symbols for modern life"
 SITE_DESCRIPTION = "XUANOR 是一个以东方象征与仪式美学为灵感的品牌展示与产品目录站。"
 SITE_URL = env("SITE_URL", default="http://127.0.0.1:8000")
 DEFAULT_CURRENCY = env("DEFAULT_CURRENCY", default="USD")
-DEFAULT_SHIPPING_AMOUNT = env.decimal("DEFAULT_SHIPPING_AMOUNT", default=Decimal("15.00"))
+DEFAULT_SHIPPING_AMOUNT = Decimal(env("DEFAULT_SHIPPING_AMOUNT", default="15.00"))
 
 STRIPE_SECRET_KEY = env("STRIPE_SECRET_KEY", default="")
 STRIPE_WEBHOOK_SECRET = env("STRIPE_WEBHOOK_SECRET", default="")

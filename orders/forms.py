@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 from django import forms
+from django.conf import settings
 
 from payments.models import Payment
 from products.models import Product
@@ -36,4 +37,4 @@ class CheckoutForm(forms.Form):
         return cleaned_data
 
     def shipping_amount(self):
-        return Decimal("0.00") if self.product.price is None else Decimal("15.00")
+        return Decimal("0.00") if self.product.price is None else settings.DEFAULT_SHIPPING_AMOUNT

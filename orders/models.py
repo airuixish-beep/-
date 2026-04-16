@@ -93,14 +93,21 @@ class Order(models.Model):
         if self.payment_status == self.PaymentStatus.PAID:
             return
 
-        items = list(self.items.select_related("product").select_for_update())
-        for item in items:
-            if item.product.stock_quantity < item.quantity:
-                raise ValueError(f"商品库存不足：{item.product.name}")
+        items = list(self.items.select_for_update())
+        products = {
+            product.id: product
+            for product in Product.objects.select_for_update().filter(id__in=[item.product_id for item in items])
+        }
 
         for item in items:
-            item.product.stock_quantity -= item.quantity
-            item.product.save(update_fields=["stock_quantity", "updated_at"])
+            product = products[item.product_id]
+            if product.stock_quantity < item.quantity:
+                raise ValueError(f"商品库存不足：{product.name}")
+
+        for item in items:
+            product = products[item.product_id]
+            product.stock_quantity -= item.quantity
+            product.save(update_fields=["stock_quantity", "updated_at"])
 
         self.status = self.Status.PAID
         self.payment_status = self.PaymentStatus.PAID

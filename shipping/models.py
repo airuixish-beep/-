@@ -1,5 +1,7 @@
 from django.db import models
 
+from orders.models import Order
+
 
 class Shipment(models.Model):
     class Provider(models.TextChoices):
@@ -15,7 +17,7 @@ class Shipment(models.Model):
         EXCEPTION = "exception", "异常"
         CANCELLED = "cancelled", "已取消"
 
-    order = models.ForeignKey("orders.Order", on_delete=models.CASCADE, related_name="shipments")
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name="shipments")
     provider = models.CharField(max_length=20, choices=Provider.choices, default=Provider.MANUAL)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
     external_shipment_id = models.CharField(max_length=120, blank=True)

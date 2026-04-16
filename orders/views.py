@@ -1,6 +1,7 @@
+from decimal import Decimal
+
 from django.conf import settings
 from django.contrib import messages
-from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
 
 from payments.models import Payment
@@ -34,7 +35,7 @@ def checkout(request, slug):
             product=product,
             product_name_snapshot=product.name,
             sku_snapshot=product.sku or "",
-            unit_price=product.price or 0,
+            unit_price=product.price or Decimal("0.00"),
             quantity=form.cleaned_data["quantity"],
         )
         order.recalculate_totals()
