@@ -7,6 +7,9 @@ from payments.models import Payment
 from products.models import Product
 
 
+INPUT_CLASS = "w-full rounded-2xl border border-white/10 bg-xuanor-panel px-4 py-3 text-sm text-xuanor-cream outline-none ring-0 placeholder:text-stone-500 focus:border-xuanor-gold"
+
+
 class CheckoutForm(forms.Form):
     customer_name = forms.CharField(max_length=120)
     customer_email = forms.EmailField()
@@ -23,6 +26,12 @@ class CheckoutForm(forms.Form):
     def __init__(self, *args, product: Product, **kwargs):
         self.product = product
         super().__init__(*args, **kwargs)
+        self._apply_widget_classes()
+
+    def _apply_widget_classes(self):
+        for field in self.fields.values():
+            existing_class = field.widget.attrs.get("class", "")
+            field.widget.attrs["class"] = f"{existing_class} {INPUT_CLASS}".strip()
 
     def clean_quantity(self):
         quantity = self.cleaned_data["quantity"]

@@ -1,0 +1,85 @@
+{% extends 'base.html' %}
+
+{% block title %}订单 {{ order.order_number }} | XUANOR{% endblock %}
+
+{% block content %}
+<section class="border-b border-white/10">
+  <div class="mx-auto max-w-5xl px-6 py-20 lg:px-10">
+    <p class="text-xs uppercase tracking-[0.35em] text-xuanor-gold">Order Detail</p>
+    <h1 class="mt-3 text-4xl text-xuanor-cream md:text-5xl">订单 {{ order.order_number }}</h1>
+    <p class="mt-6 text-base leading-8 text-xuanor-muted">这里可以查看当前订单的支付与物流状态。</p>
+
+    <div class="mt-10 grid gap-6 lg:grid-cols-2">
+      <article class="rounded-[2rem] border border-white/10 bg-white/[0.02] p-6">
+        <h2 class="text-xl text-xuanor-cream">订单状态</h2>
+        <dl class="mt-6 space-y-3 text-sm text-xuanor-muted">
+          <div class="flex items-center justify-between gap-4"><dt>订单状态</dt><dd>{{ order.get_status_display }}</dd></div>
+          <div class="flex items-center justify-between gap-4"><dt>支付状态</dt><dd>{{ order.get_payment_status_display }}</dd></div>
+          <div class="flex items-center justify-between gap-4"><dt>发货状态</dt><dd>{{ order.get_fulfillment_status_display }}</dd></div>
+          <div class="flex items-center justify-between gap-4"><dt>订单总额</dt><dd>{{ order.currency }} {{ order.total_amount }}</dd></div>
+          <div class="flex items-center justify-between gap-4"><dt>下单邮箱</dt><dd>{{ order.customer_email }}</dd></div>
+        </dl>
+      </article>
+
+      <article class="rounded-[2rem] border border-white/10 bg-white/[0.02] p-6">
+        <h2 class="text-xl text-xuanor-cream">收货信息</h2>
+        <div class="mt-6 space-y-3 text-sm leading-7 text-xuanor-muted">
+          <p>{{ order.customer_name }}</p>
+          <p>{{ order.shipping_address }}</p>
+          {% if order.customer_phone %}<p>{{ order.customer_phone }}</p>{% endif %}
+        </div>
+      </article>
+    </div>
+
+    <article class="mt-6 rounded-[2rem] border border-white/10 bg-white/[0.02] p-6">
+      <h2 class="text-xl text-xuanor-cream">订单商品</h2>
+      <div class="mt-6 space-y-4">
+        {% for item in order.items.all %}
+          <div class="flex items-center justify-between gap-4 border-b border-white/10 pb-4 text-sm text-xuanor-muted last:border-0 last:pb-0">
+            <div>
+              <p class="text-xuanor-cream">{{ item.product_name_snapshot }}</p>
+              <p>SKU: {{ item.sku_snapshot|default:'-' }}</p>
+            </div>
+            <div class="text-right">
+              <p>数量 {{ item.quantity }}</p>
+              <p>{{ order.currency }} {{ item.line_total }}</p>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    </article>
+
+    <div class="mt-6 grid gap-6 lg:grid-cols-2">
+      <article class="rounded-[2rem] border border-white/10 bg-white/[0.02] p-6">
+        <h2 class="text-xl text-xuanor-cream">最近支付</h2>
+        {% if latest_payment %}
+          <dl class="mt-6 space-y-3 text-sm text-xuanor-muted">
+            <div class="flex items-center justify-between gap-4"><dt>方式</dt><dd>{{ latest_payment.get_provider_display }}</dd></div>
+            <div class="flex items-center justify-between gap-4"><dt>状态</dt><dd>{{ latest_payment.get_status_display }}</dd></div>
+            <div class="flex items-center justify-between gap-4"><dt>金额</dt><dd>{{ latest_payment.currency }} {{ latest_payment.amount }}</dd></div>
+            {% if latest_payment.paid_at %}<div class="flex items-center justify-between gap-4"><dt>支付时间</dt><dd>{{ latest_payment.paid_at }}</dd></div>{% endif %}
+          </dl>
+        {% else %}
+          <p class="mt-6 text-sm text-xuanor-muted">暂无支付记录。</p>
+        {% endif %}
+      </article>
+
+      <article class="rounded-[2rem] border border-white/10 bg-white/[0.02] p-6">
+        <h2 class="text-xl text-xuanor-cream">物流信息</h2>
+        {% if latest_shipment %}
+          <dl class="mt-6 space-y-3 text-sm text-xuanor-muted">
+            <div class="flex items-center justify-between gap-4"><dt>物流商</dt><dd>{{ latest_shipment.get_provider_display }}</dd></div>
+            <div class="flex items-center justify-between gap-4"><dt>状态</dt><dd>{{ latest_shipment.get_status_display }}</dd></div>
+            <div class="flex items-center justify-between gap-4"><dt>运单号</dt><dd>{{ latest_shipment.tracking_number|default:'-' }}</dd></div>
+            {% if latest_shipment.tracking_url %}
+              <div><a href="{{ latest_shipment.tracking_url }}" class="text-xuanor-gold hover:opacity-80">查看物流追踪</a></div>
+            {% endif %}
+          </dl>
+        {% else %}
+          <p class="mt-6 text-sm text-xuanor-muted">订单尚未发货。</p>
+        {% endif %}
+      </article>
+    </div>
+  </div>
+</section>
+{% endblock %}

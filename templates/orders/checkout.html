@@ -1,0 +1,102 @@
+{% extends 'base.html' %}
+
+{% block title %}下单 | {{ product.name }} | XUANOR{% endblock %}
+
+{% block content %}
+<section class="border-b border-white/10">
+  <div class="mx-auto grid max-w-7xl gap-10 px-6 py-20 lg:grid-cols-[1.1fr_0.9fr] lg:px-10">
+    <div>
+      <p class="text-xs uppercase tracking-[0.35em] text-xuanor-gold">Checkout</p>
+      <h1 class="mt-3 text-4xl text-xuanor-cream md:text-5xl">提交订单</h1>
+      <p class="mt-6 max-w-2xl text-base leading-8 text-xuanor-muted">填写收货信息后，将跳转到 Stripe 或 PayPal 完成支付。</p>
+
+      <form method="post" class="mt-10 space-y-6 rounded-[2rem] border border-white/10 bg-white/[0.02] p-6 md:p-8">
+        {% csrf_token %}
+        {% if form.non_field_errors %}
+          <div class="rounded-2xl border border-red-400/40 bg-red-400/10 px-4 py-3 text-sm text-red-100">
+            {{ form.non_field_errors }}
+          </div>
+        {% endif %}
+
+        <div class="grid gap-5 md:grid-cols-2">
+          <div>
+            <label class="mb-2 block text-sm text-xuanor-cream">姓名</label>
+            {{ form.customer_name }}
+            {% if form.customer_name.errors %}<p class="mt-2 text-sm text-red-200">{{ form.customer_name.errors|join:', ' }}</p>{% endif %}
+          </div>
+          <div>
+            <label class="mb-2 block text-sm text-xuanor-cream">邮箱</label>
+            {{ form.customer_email }}
+            {% if form.customer_email.errors %}<p class="mt-2 text-sm text-red-200">{{ form.customer_email.errors|join:', ' }}</p>{% endif %}
+          </div>
+          <div>
+            <label class="mb-2 block text-sm text-xuanor-cream">电话</label>
+            {{ form.customer_phone }}
+          </div>
+          <div>
+            <label class="mb-2 block text-sm text-xuanor-cream">数量</label>
+            {{ form.quantity }}
+            {% if form.quantity.errors %}<p class="mt-2 text-sm text-red-200">{{ form.quantity.errors|join:', ' }}</p>{% endif %}
+          </div>
+          <div>
+            <label class="mb-2 block text-sm text-xuanor-cream">国家/地区代码</label>
+            {{ form.shipping_country }}
+          </div>
+          <div>
+            <label class="mb-2 block text-sm text-xuanor-cream">州/省</label>
+            {{ form.shipping_state }}
+          </div>
+          <div>
+            <label class="mb-2 block text-sm text-xuanor-cream">城市</label>
+            {{ form.shipping_city }}
+          </div>
+          <div>
+            <label class="mb-2 block text-sm text-xuanor-cream">邮编</label>
+            {{ form.shipping_postal_code }}
+          </div>
+        </div>
+
+        <div>
+          <label class="mb-2 block text-sm text-xuanor-cream">地址 1</label>
+          {{ form.shipping_address_line1 }}
+        </div>
+        <div>
+          <label class="mb-2 block text-sm text-xuanor-cream">地址 2</label>
+          {{ form.shipping_address_line2 }}
+        </div>
+        <div>
+          <label class="mb-2 block text-sm text-xuanor-cream">支付方式</label>
+          {{ form.payment_provider }}
+        </div>
+
+        <button type="submit" class="rounded-full border border-xuanor-gold bg-xuanor-gold px-6 py-3 text-sm text-black hover:opacity-90">
+          去支付
+        </button>
+      </form>
+    </div>
+
+    <aside class="rounded-[2rem] border border-white/10 bg-white/[0.02] p-6 md:p-8 lg:sticky lg:top-24 lg:self-start">
+      <p class="text-xs uppercase tracking-[0.35em] text-xuanor-gold">Order Summary</p>
+      <h2 class="mt-3 text-2xl text-xuanor-cream">{{ product.name }}</h2>
+      {% if product.price %}
+        <p class="mt-4 text-lg text-xuanor-cream">{{ product.currency }} {{ product.price }}</p>
+      {% endif %}
+      <p class="mt-4 text-sm leading-6 text-xuanor-muted">{{ product.short_description }}</p>
+      <dl class="mt-8 space-y-3 text-sm text-xuanor-muted">
+        <div class="flex items-center justify-between gap-4">
+          <dt>商品状态</dt>
+          <dd>{% if product.can_purchase %}可购买{% else %}暂不可购买{% endif %}</dd>
+        </div>
+        <div class="flex items-center justify-between gap-4">
+          <dt>库存</dt>
+          <dd>{{ product.stock_quantity }}</dd>
+        </div>
+        <div class="flex items-center justify-between gap-4">
+          <dt>默认运费</dt>
+          <dd>{{ product.currency }} {{ shipping_amount }}</dd>
+        </div>
+      </dl>
+    </aside>
+  </div>
+</section>
+{% endblock %}

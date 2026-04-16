@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+
+{% block title %}订单查询 | XUANOR{% endblock %}
+
+{% block content %}
+<section class="border-b border-white/10">
+  <div class="mx-auto max-w-3xl px-6 py-20 lg:px-10">
+    <p class="text-xs uppercase tracking-[0.35em] text-xuanor-gold">Orders</p>
+    <h1 class="mt-3 text-4xl text-xuanor-cream md:text-5xl">查询订单</h1>
+    <p class="mt-6 text-base leading-8 text-xuanor-muted">输入订单号和下单邮箱，即可查看支付与物流状态。</p>
+
+    <form method="post" class="mt-10 space-y-6 rounded-[2rem] border border-white/10 bg-white/[0.02] p-6 md:p-8">
+      {% csrf_token %}
+      <div>
+        <label class="mb-2 block text-sm text-xuanor-cream">订单号</label>
+        <input type="text" name="order_number" required class="w-full rounded-2xl border border-white/10 bg-xuanor-panel px-4 py-3 text-sm text-xuanor-cream outline-none ring-0 placeholder:text-stone-500 focus:border-xuanor-gold" />
+      </div>
+      <div>
+        <label class="mb-2 block text-sm text-xuanor-cream">下单邮箱</label>
+        <input type="email" name="customer_email" required class="w-full rounded-2xl border border-white/10 bg-xuanor-panel px-4 py-3 text-sm text-xuanor-cream outline-none ring-0 placeholder:text-stone-500 focus:border-xuanor-gold" />
+      </div>
+      <button type="submit" class="rounded-full border border-xuanor-gold bg-xuanor-gold px-6 py-3 text-sm text-black hover:opacity-90">查看订单</button>
+    </form>
+  </div>
+</section>
+{% endblock %}

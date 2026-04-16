@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+
+{% block title %}支付结果 | XUANOR{% endblock %}
+
+{% block content %}
+<section class="border-b border-white/10">
+  <div class="mx-auto max-w-3xl px-6 py-20 text-center lg:px-10">
+    <p class="text-xs uppercase tracking-[0.35em] text-xuanor-gold">Payment</p>
+    <h1 class="mt-3 text-4xl text-xuanor-cream md:text-5xl">支付结果</h1>
+    <p class="mt-6 text-base leading-8 text-xuanor-muted">订单号：{{ order.order_number }}</p>
+    {% if capture_error %}
+      <p class="mt-6 rounded-2xl border border-red-400/40 bg-red-400/10 px-4 py-3 text-sm text-red-100">{{ capture_error }}</p>
+    {% endif %}
+    <div class="mt-10 rounded-[2rem] border border-white/10 bg-white/[0.02] p-8 text-left">
+      <p class="text-sm text-xuanor-muted">支付状态</p>
+      <p class="mt-2 text-2xl text-xuanor-cream">{{ order.get_payment_status_display }}</p>
+      <p class="mt-6 text-sm leading-7 text-xuanor-muted">如支付已完成，可继续查看订单详情与物流状态。</p>
+      <div class="mt-8 flex flex-wrap gap-4">
+        <a href="/orders/{{ order.public_token }}/" class="rounded-full border border-xuanor-gold bg-xuanor-gold px-6 py-3 text-sm text-black hover:opacity-90">查看订单</a>
+        <a href="/products/" class="rounded-full border border-white/15 px-6 py-3 text-sm text-xuanor-cream hover:border-xuanor-gold hover:text-xuanor-gold">继续逛逛</a>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}
