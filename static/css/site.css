@@ -1,0 +1,11 @@
+body {
+  background: #050505;
+}
+
+img {
+  display: block;
+}
+
+[x-cloak] {
+  display: none !important;
+}

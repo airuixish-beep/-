@@ -1,0 +1,25 @@
+<header x-data="{ open: false }" class="sticky top-0 z-50 border-b border-white/10 bg-xuanor-black/80 backdrop-blur">
+  <div class="mx-auto flex max-w-7xl items-center justify-between px-6 py-4 lg:px-10">
+    <a href="/" class="text-sm tracking-[0.45em] text-xuanor-cream">X U A N O R</a>
+
+    <nav class="hidden items-center gap-8 text-sm text-xuanor-muted md:flex">
+      <a href="/" class="hover:text-xuanor-gold">首页</a>
+      <a href="/products/" class="hover:text-xuanor-gold">产品</a>
+      <a href="/about/" class="hover:text-xuanor-gold">关于</a>
+      <a href="/upload-test/" class="hover:text-xuanor-gold">上传测试</a>
+      <a href="/admin/" class="hover:text-xuanor-gold">后台</a>
+    </nav>
+
+    <button @click="open = !open" class="text-sm text-xuanor-cream md:hidden">菜单</button>
+  </div>
+
+  <div x-show="open" x-transition class="border-t border-white/10 md:hidden">
+    <nav class="space-y-3 px-6 py-4 text-sm text-xuanor-muted">
+      <a href="/" class="block hover:text-xuanor-gold">首页</a>
+      <a href="/products/" class="block hover:text-xuanor-gold">产品</a>
+      <a href="/about/" class="block hover:text-xuanor-gold">关于</a>
+      <a href="/upload-test/" class="block hover:text-xuanor-gold">上传测试</a>
+      <a href="/admin/" class="block hover:text-xuanor-gold">后台</a>
+    </nav>
+  </div>
+</header>

@@ -1,0 +1,13 @@
+.DS_Store
+.env
+.venv/
+__pycache__/
+*.py[cod]
+*.sqlite3
+/db.sqlite3
+/data/
+/media/
+/staticfiles/
+node_modules/
+.pytest_cache/
+.mypy_cache/

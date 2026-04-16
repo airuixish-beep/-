@@ -1,0 +1,110 @@
+{% extends 'base.html' %}
+
+{% block title %}XUANOR | Quiet symbols for modern life{% endblock %}
+
+{% block content %}
+<section class="border-b border-white/10">
+  <div class="mx-auto grid max-w-7xl items-center gap-12 px-6 py-20 lg:grid-cols-2 lg:px-10 lg:py-28">
+    <div class="max-w-xl">
+      <p class="mb-4 text-xs uppercase tracking-[0.35em] text-xuanor-gold">Xuanor · 东玄观照</p>
+      <h1 class="text-4xl leading-tight text-xuanor-cream md:text-5xl lg:text-6xl">
+        Meaningful objects inspired by Eastern symbolism.
+      </h1>
+      <p class="mt-6 max-w-lg text-base leading-7 text-xuanor-muted md:text-lg">
+        Jewelry, fragrance, and gift-inspired objects for quiet rituals, thoughtful gifting,
+        and modern living.
+      </p>
+      <div class="mt-8 flex flex-wrap gap-4">
+        <a href="/products/" class="rounded-full border border-xuanor-gold bg-xuanor-gold px-6 py-3 text-sm text-black transition hover:opacity-90">
+          进入产品目录
+        </a>
+        <a href="/about/" class="rounded-full border border-white/15 px-6 py-3 text-sm text-xuanor-cream transition hover:border-xuanor-gold hover:text-xuanor-gold">
+          了解品牌
+        </a>
+      </div>
+    </div>
+
+    <div class="relative">
+      <div class="aspect-[4/5] overflow-hidden rounded-[2rem] border border-white/10 bg-[radial-gradient(circle_at_top,rgba(200,169,107,0.18),transparent_35%),linear-gradient(180deg,#121212_0%,#050505_100%)]">
+        <div class="absolute inset-6 rounded-[1.5rem] border border-white/10"></div>
+        <div class="absolute inset-0 flex items-center justify-center">
+          <div class="text-center">
+            <div class="mx-auto mb-6 h-28 w-28 rounded-full border border-xuanor-gold/40 shadow-moon"></div>
+            <p class="text-xs uppercase tracking-[0.35em] text-stone-500">Hero Product Visual</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="border-b border-white/10">
+  <div class="mx-auto max-w-7xl px-6 py-20 lg:px-10">
+    <div class="mb-10 flex items-end justify-between gap-6">
+      <div>
+        <p class="text-xs uppercase tracking-[0.35em] text-xuanor-gold">Featured</p>
+        <h2 class="mt-3 text-3xl text-xuanor-cream md:text-4xl">Signature Pieces</h2>
+      </div>
+      <a href="/products/" class="hidden text-sm text-xuanor-muted hover:text-xuanor-gold md:block">查看全部</a>
+    </div>
+
+    <div class="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
+      {% for product in featured_products %}
+        <article class="group rounded-[1.5rem] border border-white/10 bg-white/[0.02] p-4 transition hover:-translate-y-1 hover:border-xuanor-gold/40">
+          <div class="mb-4 aspect-[4/5] overflow-hidden rounded-[1.25rem] border border-white/10 bg-[#111111]">
+            {% if product.hero_image %}
+              <img src="{{ product.hero_image.url }}" alt="{{ product.name }}" class="h-full w-full object-cover">
+            {% else %}
+              <div class="flex h-full items-center justify-center">
+                <span class="text-xs uppercase tracking-[0.35em] text-stone-500">Product Image</span>
+              </div>
+            {% endif %}
+          </div>
+          <h3 class="text-lg text-xuanor-cream">{{ product.name }}</h3>
+          <p class="mt-2 text-sm leading-6 text-xuanor-muted">{{ product.short_description }}</p>
+          <a href="{{ product.get_absolute_url }}" class="mt-5 inline-block text-sm text-xuanor-gold hover:opacity-80">查看详情</a>
+        </article>
+      {% empty %}
+        <div class="rounded-[1.5rem] border border-white/10 bg-white/[0.02] p-8 text-sm text-xuanor-muted sm:col-span-2 xl:col-span-4">
+          还没有上架精选产品。你可以先到后台录入示例产品。
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<section class="border-b border-white/10">
+  <div class="mx-auto max-w-4xl px-6 py-20 text-center lg:px-10">
+    <p class="text-xs uppercase tracking-[0.35em] text-xuanor-gold">Philosophy</p>
+    <h2 class="mt-3 text-3xl text-xuanor-cream md:text-4xl">Quiet symbols for modern life.</h2>
+    <p class="mx-auto mt-6 max-w-2xl text-base leading-8 text-xuanor-muted">
+      XUANOR 以东方象征与仪式美学为灵感，将安静、意味与留白转化为可被日常感知的物件。
+    </p>
+  </div>
+</section>
+
+<section class="border-b border-white/10">
+  <div class="mx-auto max-w-7xl px-6 py-20 lg:px-10">
+    <p class="text-xs uppercase tracking-[0.35em] text-xuanor-gold">Ritual</p>
+    <h2 class="mt-3 text-3xl text-xuanor-cream md:text-4xl">How Xuanor lives with you</h2>
+
+    <div class="mt-10 grid gap-6 md:grid-cols-3">
+      <article class="rounded-[1.5rem] border border-white/10 p-6">
+        <div class="mb-6 aspect-[4/3] rounded-[1.25rem] border border-white/10 bg-[#111111]"></div>
+        <h3 class="text-xl text-xuanor-cream">Morning Intention</h3>
+        <p class="mt-3 text-sm leading-6 text-xuanor-muted">在开始之前，先让一个安静的物件提醒你回到自己的节奏。</p>
+      </article>
+      <article class="rounded-[1.5rem] border border-white/10 p-6">
+        <div class="mb-6 aspect-[4/3] rounded-[1.25rem] border border-white/10 bg-[#111111]"></div>
+        <h3 class="text-xl text-xuanor-cream">Evening Unwinding</h3>
+        <p class="mt-3 text-sm leading-6 text-xuanor-muted">以气味、光线与形式，收回一天的杂讯，回到安静的中心。</p>
+      </article>
+      <article class="rounded-[1.5rem] border border-white/10 p-6">
+        <div class="mb-6 aspect-[4/3] rounded-[1.25rem] border border-white/10 bg-[#111111]"></div>
+        <h3 class="text-xl text-xuanor-cream">Thoughtful Gifting</h3>
+        <p class="mt-3 text-sm leading-6 text-xuanor-muted">比起喧闹的礼物，我们更在意那些能被轻轻留住的意义。</p>
+      </article>
+    </div>
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,24 @@
+<footer class="border-t border-white/10 px-6 py-10 lg:px-10">
+  <div class="mx-auto flex max-w-7xl flex-col gap-4 md:flex-row md:items-end md:justify-between">
+    <div>
+      <p class="tracking-[0.35em] text-xuanor-cream">X U A N O R</p>
+      <p class="mt-3 max-w-md text-sm leading-6 text-xuanor-muted">
+        {% if site_config and site_config.footer_text %}
+          {{ site_config.footer_text }}
+        {% else %}
+          Quiet symbols for modern life.
+        {% endif %}
+      </p>
+    </div>
+
+    <div class="text-sm text-xuanor-muted">
+      <div class="flex flex-wrap gap-4">
+        <a href="/" class="hover:text-xuanor-gold">首页</a>
+        <a href="/products/" class="hover:text-xuanor-gold">产品</a>
+        <a href="/about/" class="hover:text-xuanor-gold">关于</a>
+        <a href="/admin/" class="hover:text-xuanor-gold">后台</a>
+      </div>
+      <p class="mt-3">© {% now "Y" %} {% if site_config %}{{ site_config.site_name }}{% else %}XUANOR{% endif %}</p>
+    </div>
+  </div>
+</footer>

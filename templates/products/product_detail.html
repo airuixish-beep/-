@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ product.name }} | XUANOR{% endblock %}
+{% block meta_description %}{{ product.short_description|default:product.description|truncatechars:140 }}{% endblock %}
+
+{% block content %}
+<section class="border-b border-white/10">
+  <div class="mx-auto grid max-w-7xl gap-12 px-6 py-20 lg:grid-cols-2 lg:px-10">
+    <div>
+      <div class="aspect-[4/5] overflow-hidden rounded-[2rem] border border-white/10 bg-[#111111]">
+        {% if product.hero_image %}
+          <img src="{{ product.hero_image.url }}" alt="{{ product.name }}" class="h-full w-full object-cover">
+        {% else %}
+          <div class="flex h-full items-center justify-center">
+            <span class="text-xs uppercase tracking-[0.35em] text-stone-500">Product Image</span>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="max-w-xl">
+      <p class="text-xs uppercase tracking-[0.35em] text-xuanor-gold">{% if product.subtitle %}{{ product.subtitle }}{% else %}XUANOR Product{% endif %}</p>
+      <h1 class="mt-4 text-4xl leading-tight text-xuanor-cream md:text-5xl">{{ product.name }}</h1>
+      <p class="mt-6 text-base leading-8 text-xuanor-muted">{{ product.description|linebreaksbr }}</p>
+
+      {% if product.features.all %}
+        <div class="mt-10 space-y-4">
+          {% for feature in product.features.all %}
+            <div class="rounded-[1.25rem] border border-white/10 p-5">
+              <h2 class="text-lg text-xuanor-cream">{{ feature.title }}</h2>
+              {% if feature.description %}
+                <p class="mt-2 text-sm leading-6 text-xuanor-muted">{{ feature.description }}</p>
+              {% endif %}
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+
+      <div class="mt-10 flex flex-wrap gap-4">
+        <a href="/products/" class="rounded-full border border-xuanor-gold bg-xuanor-gold px-6 py-3 text-sm text-black hover:opacity-90">返回产品目录</a>
+        <a href="/about/" class="rounded-full border border-white/15 px-6 py-3 text-sm text-xuanor-cream hover:border-xuanor-gold hover:text-xuanor-gold">查看品牌故事</a>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}
