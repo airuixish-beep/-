@@ -30,31 +30,33 @@ class Order(models.Model):
         DELIVERED = "delivered", "已送达"
         CANCELLED = "cancelled", "已取消"
 
-    order_number = models.CharField(max_length=32, unique=True, blank=True)
-    public_token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
-    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
-    payment_status = models.CharField(max_length=20, choices=PaymentStatus.choices, default=PaymentStatus.PENDING)
-    fulfillment_status = models.CharField(max_length=20, choices=FulfillmentStatus.choices, default=FulfillmentStatus.UNFULFILLED)
-    customer_name = models.CharField(max_length=120)
-    customer_email = models.EmailField()
-    customer_phone = models.CharField(max_length=50, blank=True)
-    shipping_country = models.CharField(max_length=2)
-    shipping_state = models.CharField(max_length=100, blank=True)
-    shipping_city = models.CharField(max_length=100)
-    shipping_postal_code = models.CharField(max_length=20)
-    shipping_address_line1 = models.CharField(max_length=255)
-    shipping_address_line2 = models.CharField(max_length=255, blank=True)
-    subtotal_amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
-    shipping_amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
-    total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
-    currency = models.CharField(max_length=3, default=Product.Currency.USD)
-    notes = models.TextField(blank=True)
-    paid_at = models.DateTimeField(blank=True, null=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    order_number = models.CharField("订单号", max_length=32, unique=True, blank=True)
+    public_token = models.UUIDField("公开访问令牌", default=uuid.uuid4, unique=True, editable=False)
+    status = models.CharField("订单状态", max_length=20, choices=Status.choices, default=Status.PENDING)
+    payment_status = models.CharField("支付状态", max_length=20, choices=PaymentStatus.choices, default=PaymentStatus.PENDING)
+    fulfillment_status = models.CharField("履约状态", max_length=20, choices=FulfillmentStatus.choices, default=FulfillmentStatus.UNFULFILLED)
+    customer_name = models.CharField("客户姓名", max_length=120)
+    customer_email = models.EmailField("客户邮箱")
+    customer_phone = models.CharField("客户电话", max_length=50, blank=True)
+    shipping_country = models.CharField("收货国家", max_length=2)
+    shipping_state = models.CharField("州/省", max_length=100, blank=True)
+    shipping_city = models.CharField("城市", max_length=100)
+    shipping_postal_code = models.CharField("邮编", max_length=20)
+    shipping_address_line1 = models.CharField("地址 1", max_length=255)
+    shipping_address_line2 = models.CharField("地址 2", max_length=255, blank=True)
+    subtotal_amount = models.DecimalField("商品小计", max_digits=10, decimal_places=2, default=Decimal("0.00"))
+    shipping_amount = models.DecimalField("运费", max_digits=10, decimal_places=2, default=Decimal("0.00"))
+    total_amount = models.DecimalField("订单总额", max_digits=10, decimal_places=2, default=Decimal("0.00"))
+    currency = models.CharField("币种", max_length=3, default=Product.Currency.USD)
+    notes = models.TextField("备注", blank=True)
+    paid_at = models.DateTimeField("支付时间", blank=True, null=True)
+    created_at = models.DateTimeField("创建时间", auto_now_add=True)
+    updated_at = models.DateTimeField("更新时间", auto_now=True)
 
     class Meta:
         ordering = ["-created_at"]
+        verbose_name = "订单"
+        verbose_name_plural = "订单"
 
     def __str__(self):
         return self.order_number
@@ -166,16 +168,18 @@ class Order(models.Model):
 
 
 class OrderItem(models.Model):
-    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name="items")
-    product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name="order_items")
-    product_name_snapshot = models.CharField(max_length=150)
-    sku_snapshot = models.CharField(max_length=64, blank=True)
-    unit_price = models.DecimalField(max_digits=10, decimal_places=2)
-    quantity = models.PositiveIntegerField(default=1)
-    line_total = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
+    order = models.ForeignKey(Order, verbose_name="所属订单", on_delete=models.CASCADE, related_name="items")
+    product = models.ForeignKey(Product, verbose_name="关联商品", on_delete=models.PROTECT, related_name="order_items")
+    product_name_snapshot = models.CharField("商品名称快照", max_length=150)
+    sku_snapshot = models.CharField("SKU 快照", max_length=64, blank=True)
+    unit_price = models.DecimalField("单价", max_digits=10, decimal_places=2)
+    quantity = models.PositiveIntegerField("数量", default=1)
+    line_total = models.DecimalField("小计", max_digits=10, decimal_places=2, default=Decimal("0.00"))
 
     class Meta:
         ordering = ["id"]
+        verbose_name = "订单商品"
+        verbose_name_plural = "订单商品"
 
     def __str__(self):
         return f"{self.order.order_number} - {self.product_name_snapshot}"
