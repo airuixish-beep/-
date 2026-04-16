@@ -2,9 +2,10 @@ from decimal import Decimal
 
 from django.contrib import messages
 from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.http import require_POST
 
 from payments.models import Payment
-from payments.services import create_payment_redirect
+from payments.services import PaymentGatewayError, create_payment_redirect
 from products.models import Product
 
 from .forms import CheckoutForm
@@ -49,8 +50,10 @@ def checkout(request, slug):
         except Exception:
             payment.status = Payment.Status.FAILED
             payment.save(update_fields=["status", "updated_at"])
+            order.mark_payment_failed()
             form.add_error(None, "支付初始化失败，请稍后重试。")
         else:
+            order.mark_payment_pending()
             return redirect(redirect_url)
 
     context = {
@@ -72,6 +75,56 @@ def order_lookup(request):
     return render(request, "orders/order_lookup.html")
 
 
+@require_POST
+def retry_payment(request, public_token):
+    order = get_object_or_404(Order.objects.prefetch_related("payments"), public_token=public_token)
+    if not order.can_retry_payment:
+        messages.error(request, "当前订单不支持重新支付。")
+        return redirect("orders:detail", public_token=order.public_token)
+
+    latest_payment = order.payments.first()
+    if latest_payment is None:
+        messages.error(request, "当前订单暂无可重试的支付记录。")
+        return redirect("orders:detail", public_token=order.public_token)
+
+    payment = Payment.objects.create(
+        order=order,
+        provider=latest_payment.provider,
+        amount=order.total_amount,
+        currency=order.currency,
+    )
+
+    try:
+        redirect_url = create_payment_redirect(payment, request)
+    except PaymentGatewayError:
+        payment.status = Payment.Status.FAILED
+        payment.save(update_fields=["status", "updated_at"])
+        order.mark_payment_failed()
+        messages.error(request, "重新发起支付失败，请稍后再试。")
+        return redirect("orders:detail", public_token=order.public_token)
+    except Exception:
+        payment.status = Payment.Status.FAILED
+        payment.save(update_fields=["status", "updated_at"])
+        order.mark_payment_failed()
+        messages.error(request, "重新发起支付失败，请稍后再试。")
+        return redirect("orders:detail", public_token=order.public_token)
+
+    order.mark_payment_pending()
+    return redirect(redirect_url)
+
+
 def order_detail(request, public_token):
     order = get_object_or_404(Order.objects.prefetch_related("items__product", "payments", "shipments__events"), public_token=public_token)
-    return render(request, "orders/order_detail.html", {"order": order, "latest_payment": order.payments.first(), "latest_shipment": order.shipments.first()})
+    latest_payment = order.payments.first()
+    latest_shipment = order.shipments.first()
+    shipment_events = latest_shipment.events.all() if latest_shipment else []
+    return render(
+        request,
+        "orders/order_detail.html",
+        {
+            "order": order,
+            "latest_payment": latest_payment,
+            "latest_shipment": latest_shipment,
+            "shipment_events": shipment_events,
+        },
+    )

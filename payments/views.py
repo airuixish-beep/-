@@ -12,6 +12,7 @@ def success(request, public_token):
     order = get_object_or_404(Order.objects.prefetch_related("payments", "shipments"), public_token=public_token)
     payment = order.payments.first()
     capture_error = ""
+    awaiting_confirmation = False
 
     if payment and payment.provider == Payment.Provider.PAYPAL and payment.status != Payment.Status.PAID:
         token = request.GET.get("token", "")
@@ -21,9 +22,25 @@ def success(request, public_token):
                 order.refresh_from_db()
                 payment.refresh_from_db()
             except Exception:
-                capture_error = "PayPal 支付回写失败，请稍后刷新订单页面或联系管理员。"
+                payment.status = Payment.Status.FAILED
+                payment.save(update_fields=["status", "updated_at"])
+                order.mark_payment_failed()
+                order.refresh_from_db()
+                payment.refresh_from_db()
+                capture_error = "PayPal 支付回写失败，请稍后重试。"
+    elif payment and payment.provider == Payment.Provider.STRIPE and payment.status != Payment.Status.PAID:
+        awaiting_confirmation = True
 
-    return render(request, "payments/success.html", {"order": order, "payment": payment, "capture_error": capture_error})
+    return render(
+        request,
+        "payments/success.html",
+        {
+            "order": order,
+            "payment": payment,
+            "capture_error": capture_error,
+            "awaiting_confirmation": awaiting_confirmation,
+        },
+    )
 
 
 def cancel(request, public_token):
@@ -32,9 +49,7 @@ def cancel(request, public_token):
     if payment and payment.status == Payment.Status.REQUIRES_ACTION:
         payment.status = Payment.Status.CANCELLED
         payment.save(update_fields=["status", "updated_at"])
-        order.status = Order.Status.CANCELLED
-        order.payment_status = Order.PaymentStatus.CANCELLED
-        order.save(update_fields=["status", "payment_status", "updated_at"])
+        order.mark_payment_cancelled()
     return render(request, "payments/cancel.html", {"order": order, "payment": payment})
 
 

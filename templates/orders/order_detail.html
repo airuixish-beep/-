@@ -7,9 +7,47 @@
   <div class="mx-auto max-w-5xl px-6 py-20 lg:px-10">
     <p class="text-xs uppercase tracking-[0.35em] text-xuanor-gold">Order Detail</p>
     <h1 class="mt-3 text-4xl text-xuanor-cream md:text-5xl">订单 {{ order.order_number }}</h1>
-    <p class="mt-6 text-base leading-8 text-xuanor-muted">这里可以查看当前订单的支付与物流状态。</p>
+    <p class="mt-6 text-base leading-8 text-xuanor-muted">这里可以查看当前订单的支付、履约与物流状态。</p>
 
-    <div class="mt-10 grid gap-6 lg:grid-cols-2">
+    <article class="mt-10 rounded-[2rem] border border-white/10 bg-white/[0.02] p-6">
+      <h2 class="text-xl text-xuanor-cream">当前摘要</h2>
+      <div class="mt-6 grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+        <div>
+          <p class="text-sm text-xuanor-muted">订单状态</p>
+          <p class="mt-2 text-lg text-xuanor-cream">{{ order.get_status_display }}</p>
+        </div>
+        <div>
+          <p class="text-sm text-xuanor-muted">支付状态</p>
+          <p class="mt-2 text-lg text-xuanor-cream">{{ order.get_payment_status_display }}</p>
+        </div>
+        <div>
+          <p class="text-sm text-xuanor-muted">履约状态</p>
+          <p class="mt-2 text-lg text-xuanor-cream">{{ order.get_fulfillment_status_display }}</p>
+        </div>
+        <div>
+          <p class="text-sm text-xuanor-muted">建议动作</p>
+          <p class="mt-2 text-lg text-xuanor-cream">
+            {% if order.can_retry_payment %}
+              重新支付
+            {% elif latest_shipment and latest_shipment.tracking_url %}
+              查看物流
+            {% elif order.payment_status == order.PaymentStatus.PAID %}
+              等待发货
+            {% else %}
+              等待确认
+            {% endif %}
+          </p>
+        </div>
+      </div>
+      {% if order.can_retry_payment %}
+        <form method="post" action="{% url 'orders:retry_payment' order.public_token %}" class="mt-8">
+          {% csrf_token %}
+          <button type="submit" class="rounded-full border border-xuanor-gold bg-xuanor-gold px-6 py-3 text-sm text-black hover:opacity-90">重新支付</button>
+        </form>
+      {% endif %}
+    </article>
+
+    <div class="mt-6 grid gap-6 lg:grid-cols-2">
       <article class="rounded-[2rem] border border-white/10 bg-white/[0.02] p-6">
         <h2 class="text-xl text-xuanor-cream">订单状态</h2>
         <dl class="mt-6 space-y-3 text-sm text-xuanor-muted">
@@ -59,6 +97,12 @@
             <div class="flex items-center justify-between gap-4"><dt>金额</dt><dd>{{ latest_payment.currency }} {{ latest_payment.amount }}</dd></div>
             {% if latest_payment.paid_at %}<div class="flex items-center justify-between gap-4"><dt>支付时间</dt><dd>{{ latest_payment.paid_at }}</dd></div>{% endif %}
           </dl>
+          {% if order.can_retry_payment %}
+            <form method="post" action="{% url 'orders:retry_payment' order.public_token %}" class="mt-8">
+              {% csrf_token %}
+              <button type="submit" class="rounded-full border border-white/15 px-6 py-3 text-sm text-xuanor-cream hover:border-xuanor-gold hover:text-xuanor-gold">重新支付</button>
+            </form>
+          {% endif %}
         {% else %}
           <p class="mt-6 text-sm text-xuanor-muted">暂无支付记录。</p>
         {% endif %}
@@ -75,8 +119,30 @@
               <div><a href="{{ latest_shipment.tracking_url }}" class="text-xuanor-gold hover:opacity-80">查看物流追踪</a></div>
             {% endif %}
           </dl>
+          {% if shipment_events %}
+            <div class="mt-8 space-y-4 border-t border-white/10 pt-6">
+              <h3 class="text-sm uppercase tracking-[0.25em] text-xuanor-gold">物流时间线</h3>
+              {% for event in shipment_events %}
+                <div class="rounded-2xl border border-white/10 px-4 py-3 text-sm text-xuanor-muted">
+                  <div class="flex items-center justify-between gap-4">
+                    <span class="text-xuanor-cream">{{ event.get_status_display }}</span>
+                    <span>{{ event.event_time }}</span>
+                  </div>
+                  {% if event.message %}
+                    <p class="mt-2">{{ event.message }}</p>
+                  {% endif %}
+                </div>
+              {% endfor %}
+            </div>
+          {% endif %}
         {% else %}
-          <p class="mt-6 text-sm text-xuanor-muted">订单尚未发货。</p>
+          <p class="mt-6 text-sm text-xuanor-muted">
+            {% if order.payment_status == order.PaymentStatus.PAID %}
+              订单已支付，正在等待后台处理发货。
+            {% else %}
+              订单尚未发货。
+            {% endif %}
+          </p>
         {% endif %}
       </article>
     </div>

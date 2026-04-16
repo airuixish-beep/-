@@ -10,14 +10,22 @@
     <p class="mt-6 text-base leading-8 text-xuanor-muted">订单号：{{ order.order_number }}</p>
     {% if capture_error %}
       <p class="mt-6 rounded-2xl border border-red-400/40 bg-red-400/10 px-4 py-3 text-sm text-red-100">{{ capture_error }}</p>
+    {% elif awaiting_confirmation %}
+      <p class="mt-6 rounded-2xl border border-xuanor-gold/40 bg-xuanor-gold/10 px-4 py-3 text-sm text-xuanor-cream">支付已提交，正在等待 Stripe 回写确认。你可以进入订单页刷新查看最新状态。</p>
     {% endif %}
     <div class="mt-10 rounded-[2rem] border border-white/10 bg-white/[0.02] p-8 text-left">
       <p class="text-sm text-xuanor-muted">支付状态</p>
       <p class="mt-2 text-2xl text-xuanor-cream">{{ order.get_payment_status_display }}</p>
-      <p class="mt-6 text-sm leading-7 text-xuanor-muted">如支付已完成，可继续查看订单详情与物流状态。</p>
+      {% if payment %}
+        <dl class="mt-6 space-y-3 text-sm text-xuanor-muted">
+          <div class="flex items-center justify-between gap-4"><dt>支付方式</dt><dd>{{ payment.get_provider_display }}</dd></div>
+          <div class="flex items-center justify-between gap-4"><dt>订单金额</dt><dd>{{ order.currency }} {{ order.total_amount }}</dd></div>
+        </dl>
+      {% endif %}
+      <p class="mt-6 text-sm leading-7 text-xuanor-muted">如支付已完成，可继续查看订单详情与物流状态；若仍在确认中，请稍后刷新订单页面。</p>
       <div class="mt-8 flex flex-wrap gap-4">
-        <a href="/orders/{{ order.public_token }}/" class="rounded-full border border-xuanor-gold bg-xuanor-gold px-6 py-3 text-sm text-black hover:opacity-90">查看订单</a>
-        <a href="/products/" class="rounded-full border border-white/15 px-6 py-3 text-sm text-xuanor-cream hover:border-xuanor-gold hover:text-xuanor-gold">继续逛逛</a>
+        <a href="{% url 'orders:detail' order.public_token %}" class="rounded-full border border-xuanor-gold bg-xuanor-gold px-6 py-3 text-sm text-black hover:opacity-90">查看订单</a>
+        <a href="{% url 'products:list' %}" class="rounded-full border border-white/15 px-6 py-3 text-sm text-xuanor-cream hover:border-xuanor-gold hover:text-xuanor-gold">继续逛逛</a>
       </div>
     </div>
   </div>

@@ -88,6 +88,17 @@ class Order(models.Model):
             self.save(update_fields=["subtotal_amount", "total_amount", "updated_at"])
         return self.total_amount
 
+    @property
+    def can_retry_payment(self):
+        return self.payment_status != self.PaymentStatus.PAID and self.status != self.Status.CANCELLED
+
+    def mark_payment_pending(self):
+        if self.payment_status == self.PaymentStatus.PAID:
+            return
+        self.status = self.Status.PENDING
+        self.payment_status = self.PaymentStatus.PENDING
+        self.save(update_fields=["status", "payment_status", "updated_at"])
+
     @transaction.atomic
     def mark_paid(self, paid_at=None):
         if self.payment_status == self.PaymentStatus.PAID:
@@ -115,8 +126,43 @@ class Order(models.Model):
         self.save(update_fields=["status", "payment_status", "paid_at", "updated_at"])
 
     def mark_payment_failed(self):
+        if self.payment_status == self.PaymentStatus.PAID:
+            return
+        self.status = self.Status.PENDING
         self.payment_status = self.PaymentStatus.FAILED
-        self.save(update_fields=["payment_status", "updated_at"])
+        self.save(update_fields=["status", "payment_status", "updated_at"])
+
+    def mark_payment_cancelled(self):
+        if self.payment_status == self.PaymentStatus.PAID:
+            return
+        self.status = self.Status.PENDING
+        self.payment_status = self.PaymentStatus.CANCELLED
+        self.save(update_fields=["status", "payment_status", "updated_at"])
+
+    def sync_fulfillment_from_shipment_status(self, shipment_status):
+        update_fields = []
+
+        if shipment_status == "label_purchased":
+            self.fulfillment_status = self.FulfillmentStatus.PROCESSING
+            update_fields.append("fulfillment_status")
+            if self.payment_status == self.PaymentStatus.PAID:
+                self.status = self.Status.PROCESSING
+                update_fields.append("status")
+        elif shipment_status in {"shipped", "in_transit"}:
+            self.fulfillment_status = self.FulfillmentStatus.SHIPPED
+            update_fields.append("fulfillment_status")
+            if self.payment_status == self.PaymentStatus.PAID:
+                self.status = self.Status.SHIPPED
+                update_fields.append("status")
+        elif shipment_status == "delivered":
+            self.fulfillment_status = self.FulfillmentStatus.DELIVERED
+            update_fields.append("fulfillment_status")
+            if self.payment_status == self.PaymentStatus.PAID:
+                self.status = self.Status.DELIVERED
+                update_fields.append("status")
+
+        if update_fields:
+            self.save(update_fields=[*dict.fromkeys(update_fields), "updated_at"])
 
 
 class OrderItem(models.Model):

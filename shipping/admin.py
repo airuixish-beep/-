@@ -18,6 +18,10 @@ class ShipmentAdmin(admin.ModelAdmin):
     readonly_fields = ("raw_payload", "created_at", "updated_at")
     inlines = [ShipmentEventInline]
 
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        obj.order.sync_fulfillment_from_shipment_status(obj.status)
+
 
 @admin.register(ShipmentEvent)
 class ShipmentEventAdmin(admin.ModelAdmin):

@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.conf import settings
 from django.utils import timezone
 
@@ -22,9 +24,37 @@ class EasyPostService:
             raise ShippingConfigurationError("未配置 EASYPOST_API_KEY")
         return easypost.EasyPostClient(settings.EASYPOST_API_KEY)
 
+    @staticmethod
+    def _validate_from_address():
+        required_fields = {
+            "SHIP_FROM_ADDRESS_LINE1": settings.SHIP_FROM_ADDRESS_LINE1,
+            "SHIP_FROM_CITY": settings.SHIP_FROM_CITY,
+            "SHIP_FROM_STATE": settings.SHIP_FROM_STATE,
+            "SHIP_FROM_POSTAL_CODE": settings.SHIP_FROM_POSTAL_CODE,
+            "SHIP_FROM_COUNTRY": settings.SHIP_FROM_COUNTRY,
+        }
+        missing_fields = [name for name, value in required_fields.items() if not value]
+        if missing_fields:
+            raise ShippingConfigurationError(f"寄件地址配置不完整：{', '.join(missing_fields)}")
+
+    @staticmethod
+    def _parcel_for_order(order):
+        item = order.items.select_related("product").first()
+        if item is None:
+            raise ShippingConfigurationError("订单中没有可发货的商品")
+
+        weight = (item.product.weight or Decimal("16")) * item.quantity
+        return {
+            "length": float(item.product.length or 10),
+            "width": float(item.product.width or 10),
+            "height": float(item.product.height or 10),
+            "weight": float(weight),
+        }
+
     @classmethod
     def create_shipment(cls, shipment):
         client = cls._client()
+        cls._validate_from_address()
         order = shipment.order
         request = {
             "to_address": {
@@ -47,12 +77,7 @@ class EasyPostService:
                 "zip": settings.SHIP_FROM_POSTAL_CODE,
                 "country": settings.SHIP_FROM_COUNTRY,
             },
-            "parcel": {
-                "length": float(order.items.first().product.length or 10),
-                "width": float(order.items.first().product.width or 10),
-                "height": float(order.items.first().product.height or 10),
-                "weight": float(order.items.first().product.weight or 16),
-            },
+            "parcel": cls._parcel_for_order(order),
         }
         created = client.shipment.create(**request)
         bought = client.shipment.buy(created.id, rate=created.lowest_rate())
@@ -64,8 +89,8 @@ class EasyPostService:
         shipment.tracking_url = getattr(tracker, "public_url", "") if tracker else ""
         shipment.label_url = getattr(getattr(bought, "postage_label", None), "label_url", "") or ""
         shipment.raw_payload = bought.to_dict()
-        shipment.shipped_at = timezone.now()
         shipment.save()
+        order.sync_fulfillment_from_shipment_status(shipment.status)
         ShipmentEvent.objects.create(
             shipment=shipment,
             status=Shipment.Status.LABEL_PURCHASED,
