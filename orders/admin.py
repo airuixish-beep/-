@@ -1,4 +1,8 @@
 from django.contrib import admin
+from django.utils import timezone
+
+from shipping.models import Shipment
+from shipping.services import EasyPostService, ShippingConfigurationError
 
 from .models import Order, OrderItem
 
@@ -8,6 +12,34 @@ class OrderItemInline(admin.TabularInline):
     extra = 0
     readonly_fields = ("product", "product_name_snapshot", "sku_snapshot", "unit_price", "quantity", "line_total")
     can_delete = False
+
+
+@admin.action(description="为已支付订单创建 EasyPost 发货单")
+def create_easypost_shipment(modeladmin, request, queryset):
+    created_count = 0
+    for order in queryset.filter(payment_status=Order.PaymentStatus.PAID):
+        shipment, was_created = Shipment.objects.get_or_create(order=order)
+        if not was_created and shipment.external_shipment_id:
+            continue
+        try:
+            EasyPostService.create_shipment(shipment)
+        except ShippingConfigurationError as exc:
+            modeladmin.message_user(request, f"{order.order_number}: {exc}", level="error")
+        except Exception as exc:
+            modeladmin.message_user(request, f"{order.order_number}: 创建发货单失败 - {exc}", level="error")
+        else:
+            order.fulfillment_status = Order.FulfillmentStatus.SHIPPED
+            order.status = Order.Status.SHIPPED
+            order.save(update_fields=["fulfillment_status", "status", "updated_at"])
+            created_count += 1
+    if created_count:
+        modeladmin.message_user(request, f"已创建 {created_count} 个发货单。")
+
+
+@admin.action(description="将订单标记为处理中")
+def mark_processing(modeladmin, request, queryset):
+    updated = queryset.update(status=Order.Status.PROCESSING, fulfillment_status=Order.FulfillmentStatus.PROCESSING, updated_at=timezone.now())
+    modeladmin.message_user(request, f"已更新 {updated} 个订单。")
 
 
 @admin.register(Order)
@@ -35,6 +67,7 @@ class OrderAdmin(admin.ModelAdmin):
         "updated_at",
     )
     inlines = [OrderItemInline]
+    actions = [mark_processing, create_easypost_shipment]
     fieldsets = (
         ("订单状态", {"fields": ("order_number", "public_token", "status", "payment_status", "fulfillment_status", "paid_at")}),
         ("客户信息", {"fields": ("customer_name", "customer_email", "customer_phone")}),
