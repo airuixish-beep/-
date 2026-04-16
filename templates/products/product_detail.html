@@ -21,7 +21,10 @@
     <div class="max-w-xl">
       <p class="text-xs uppercase tracking-[0.35em] text-xuanor-gold">{% if product.subtitle %}{{ product.subtitle }}{% else %}XUANOR Product{% endif %}</p>
       <h1 class="mt-4 text-4xl leading-tight text-xuanor-cream md:text-5xl">{{ product.name }}</h1>
-      <p class="mt-6 text-base leading-8 text-xuanor-muted">{{ product.description|linebreaksbr }}</p>
+      {% if product.price %}
+        <p class="mt-6 text-2xl text-xuanor-cream">{{ product.currency }} {{ product.price }}</p>
+      {% endif %}
+      <p class="mt-4 text-base leading-8 text-xuanor-muted">{{ product.description|linebreaksbr }}</p>
 
       {% if product.features.all %}
         <div class="mt-10 space-y-4">
@@ -37,7 +40,12 @@
       {% endif %}
 
       <div class="mt-10 flex flex-wrap gap-4">
-        <a href="/products/" class="rounded-full border border-xuanor-gold bg-xuanor-gold px-6 py-3 text-sm text-black hover:opacity-90">返回产品目录</a>
+        {% if product.can_purchase %}
+          <a href="/orders/checkout/{{ product.slug }}/" class="rounded-full border border-xuanor-gold bg-xuanor-gold px-6 py-3 text-sm text-black hover:opacity-90">立即购买</a>
+        {% else %}
+          <span class="rounded-full border border-white/10 px-6 py-3 text-sm text-xuanor-muted">暂不可购买</span>
+        {% endif %}
+        <a href="/products/" class="rounded-full border border-white/15 px-6 py-3 text-sm text-xuanor-cream hover:border-xuanor-gold hover:text-xuanor-gold">返回产品目录</a>
         <a href="/about/" class="rounded-full border border-white/15 px-6 py-3 text-sm text-xuanor-cream hover:border-xuanor-gold hover:text-xuanor-gold">查看品牌故事</a>
       </div>
     </div>
