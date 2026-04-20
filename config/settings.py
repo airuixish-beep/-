@@ -27,10 +27,12 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "core",
     "pages",
+    "analytics_dashboard",
     "products",
     "orders",
     "payments",
     "shipping",
+    "support_chat",
 ]
 
 MIDDLEWARE = [
@@ -126,6 +128,11 @@ PAYPAL_CLIENT_ID = env("PAYPAL_CLIENT_ID", default="")
 PAYPAL_CLIENT_SECRET = env("PAYPAL_CLIENT_SECRET", default="")
 PAYPAL_BASE_URL = env("PAYPAL_BASE_URL", default="https://api-m.sandbox.paypal.com")
 EASYPOST_API_KEY = env("EASYPOST_API_KEY", default="")
+CHAT_WIDGET_ENABLED = env.bool("CHAT_WIDGET_ENABLED", default=True)
+CHAT_DEFAULT_OPERATOR_LANGUAGE = env("CHAT_DEFAULT_OPERATOR_LANGUAGE", default="zh-hans")
+CHAT_POLL_INTERVAL_MS = env.int("CHAT_POLL_INTERVAL_MS", default=3000)
+CHAT_TRANSLATION_PROVIDER = env("CHAT_TRANSLATION_PROVIDER", default="mock")
+CHAT_TRANSLATION_API_KEY = env("CHAT_TRANSLATION_API_KEY", default="")
 SHIP_FROM_ADDRESS_LINE1 = env("SHIP_FROM_ADDRESS_LINE1", default="")
 SHIP_FROM_ADDRESS_LINE2 = env("SHIP_FROM_ADDRESS_LINE2", default="")
 SHIP_FROM_CITY = env("SHIP_FROM_CITY", default="")

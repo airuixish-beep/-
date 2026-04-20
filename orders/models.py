@@ -142,21 +142,23 @@ class Order(models.Model):
         self.save(update_fields=["status", "payment_status", "updated_at"])
 
     def sync_fulfillment_from_shipment_status(self, shipment_status):
+        from shipping.models import Shipment
+
         update_fields = []
 
-        if shipment_status == "label_purchased":
+        if shipment_status == Shipment.Status.LABEL_PURCHASED:
             self.fulfillment_status = self.FulfillmentStatus.PROCESSING
             update_fields.append("fulfillment_status")
             if self.payment_status == self.PaymentStatus.PAID:
                 self.status = self.Status.PROCESSING
                 update_fields.append("status")
-        elif shipment_status in {"shipped", "in_transit"}:
+        elif shipment_status in {Shipment.Status.SHIPPED, Shipment.Status.IN_TRANSIT}:
             self.fulfillment_status = self.FulfillmentStatus.SHIPPED
             update_fields.append("fulfillment_status")
             if self.payment_status == self.PaymentStatus.PAID:
                 self.status = self.Status.SHIPPED
                 update_fields.append("status")
-        elif shipment_status == "delivered":
+        elif shipment_status == Shipment.Status.DELIVERED:
             self.fulfillment_status = self.FulfillmentStatus.DELIVERED
             update_fields.append("fulfillment_status")
             if self.payment_status == self.PaymentStatus.PAID:

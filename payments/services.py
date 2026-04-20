@@ -34,6 +34,13 @@ def _stripe_object_to_dict(value):
     return dict(value)
 
 
+def build_return_urls(request, payment):
+    return {
+        "success_url": request.build_absolute_uri(reverse("payments:success", kwargs={"public_token": payment.order.public_token})),
+        "cancel_url": request.build_absolute_uri(reverse("payments:cancel", kwargs={"public_token": payment.order.public_token})),
+    }
+
+
 class StripeService:
     @staticmethod
     def create_checkout_session(payment, request):
@@ -43,12 +50,11 @@ class StripeService:
             raise PaymentConfigurationError("未配置 STRIPE_SECRET_KEY")
 
         stripe.api_key = settings.STRIPE_SECRET_KEY
-        success_url = request.build_absolute_uri(reverse("payments:success", kwargs={"public_token": payment.order.public_token}))
-        cancel_url = request.build_absolute_uri(reverse("payments:cancel", kwargs={"public_token": payment.order.public_token}))
+        urls = build_return_urls(request, payment)
         session = stripe.checkout.Session.create(
             mode="payment",
-            success_url=success_url,
-            cancel_url=cancel_url,
+            success_url=urls["success_url"],
+            cancel_url=urls["cancel_url"],
             customer_email=payment.order.customer_email,
             metadata={"order_id": str(payment.order_id), "payment_id": str(payment.id)},
             line_items=[
@@ -120,8 +126,7 @@ class PayPalService:
     @classmethod
     def create_order(cls, payment, request):
         access_token = cls._get_access_token()
-        success_url = request.build_absolute_uri(reverse("payments:success", kwargs={"public_token": payment.order.public_token}))
-        cancel_url = request.build_absolute_uri(reverse("payments:cancel", kwargs={"public_token": payment.order.public_token}))
+        urls = build_return_urls(request, payment)
         payload = {
             "intent": "CAPTURE",
             "purchase_units": [
@@ -133,8 +138,8 @@ class PayPalService:
             "payment_source": {
                 "paypal": {
                     "experience_context": {
-                        "return_url": success_url,
-                        "cancel_url": cancel_url,
+                        "return_url": urls["success_url"],
+                        "cancel_url": urls["cancel_url"],
                     }
                 }
             },

@@ -12,6 +12,13 @@ from .forms import CheckoutForm
 from .models import Order, OrderItem
 
 
+def _mark_payment_attempt_failed(order, payment):
+    payment.status = Payment.Status.FAILED
+    payment.save(update_fields=["status", "updated_at"])
+    order.mark_payment_failed()
+
+
+
 def checkout(request, slug):
     product = get_object_or_404(Product, slug=slug, is_active=True)
     form = CheckoutForm(request.POST or None, product=product)
@@ -48,9 +55,7 @@ def checkout(request, slug):
         try:
             redirect_url = create_payment_redirect(payment, request)
         except Exception:
-            payment.status = Payment.Status.FAILED
-            payment.save(update_fields=["status", "updated_at"])
-            order.mark_payment_failed()
+            _mark_payment_attempt_failed(order, payment)
             form.add_error(None, "支付初始化失败，请稍后重试。")
         else:
             order.mark_payment_pending()
@@ -77,12 +82,12 @@ def order_lookup(request):
 
 @require_POST
 def retry_payment(request, public_token):
-    order = get_object_or_404(Order.objects.prefetch_related("payments"), public_token=public_token)
+    order = get_object_or_404(Order, public_token=public_token)
     if not order.can_retry_payment:
         messages.error(request, "当前订单不支持重新支付。")
         return redirect("orders:detail", public_token=order.public_token)
 
-    latest_payment = order.payments.first()
+    latest_payment = order.payments.order_by("-created_at", "-id").first()
     if latest_payment is None:
         messages.error(request, "当前订单暂无可重试的支付记录。")
         return redirect("orders:detail", public_token=order.public_token)
@@ -96,16 +101,8 @@ def retry_payment(request, public_token):
 
     try:
         redirect_url = create_payment_redirect(payment, request)
-    except PaymentGatewayError:
-        payment.status = Payment.Status.FAILED
-        payment.save(update_fields=["status", "updated_at"])
-        order.mark_payment_failed()
-        messages.error(request, "重新发起支付失败，请稍后再试。")
-        return redirect("orders:detail", public_token=order.public_token)
-    except Exception:
-        payment.status = Payment.Status.FAILED
-        payment.save(update_fields=["status", "updated_at"])
-        order.mark_payment_failed()
+    except (PaymentGatewayError, Exception):
+        _mark_payment_attempt_failed(order, payment)
         messages.error(request, "重新发起支付失败，请稍后再试。")
         return redirect("orders:detail", public_token=order.public_token)
 
@@ -114,9 +111,9 @@ def retry_payment(request, public_token):
 
 
 def order_detail(request, public_token):
-    order = get_object_or_404(Order.objects.prefetch_related("items__product", "payments", "shipments__events"), public_token=public_token)
-    latest_payment = order.payments.first()
-    latest_shipment = order.shipments.first()
+    order = get_object_or_404(Order.objects.prefetch_related("items"), public_token=public_token)
+    latest_payment = order.payments.order_by("-created_at", "-id").first()
+    latest_shipment = order.shipments.order_by("-created_at", "-id").first()
     shipment_events = latest_shipment.events.all() if latest_shipment else []
     return render(
         request,

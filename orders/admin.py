@@ -28,7 +28,6 @@ def create_easypost_shipment(modeladmin, request, queryset):
         except Exception as exc:
             modeladmin.message_user(request, f"{order.order_number}: 创建发货单失败 - {exc}", level=messages.ERROR)
         else:
-            order.sync_fulfillment_from_shipment_status(shipment.status)
             created_count += 1
     if created_count:
         modeladmin.message_user(request, f"已创建 {created_count} 个发货单。")
