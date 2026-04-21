@@ -1,17 +1,39 @@
 services:
+  db:
+    image: mysql:8.0
+    container_name: xuanor_site_db
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$${MYSQL_ROOT_PASSWORD}\" --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
   web:
     build:
       context: .
     container_name: xuanor_site_web
     env_file:
       - .env
+    depends_on:
+      db:
+        condition: service_healthy
     ports:
       - "8000:8000"
     volumes:
-      - sqlite_data:/app/data
       - media_data:/app/media
     restart: unless-stopped
 
 volumes:
-  sqlite_data:
+  mysql_data:
   media_data:

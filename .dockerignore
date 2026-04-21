@@ -10,3 +10,6 @@ __pycache__/
 media/
 staticfiles/
 db.sqlite3
+*.sql
+*.sql.gz
+data.json

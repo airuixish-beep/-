@@ -67,14 +67,28 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "config.wsgi.application"
 
-SQLITE_PATH = env("SQLITE_PATH", default=str(BASE_DIR / "db.sqlite3"))
+DB_ENGINE = env("DB_ENGINE", default="sqlite").lower()
 
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": SQLITE_PATH,
+if DB_ENGINE == "mysql":
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.mysql",
+            "NAME": env("DB_NAME", default="xuanor"),
+            "USER": env("DB_USER", default="xuanor"),
+            "PASSWORD": env("DB_PASSWORD", default=""),
+            "HOST": env("DB_HOST", default="127.0.0.1"),
+            "PORT": env("DB_PORT", default="3306"),
+            "OPTIONS": {"charset": "utf8mb4"},
+        }
     }
-}
+else:
+    SQLITE_PATH = env("SQLITE_PATH", default=str(BASE_DIR / "db.sqlite3"))
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": SQLITE_PATH,
+        }
+    }
 
 AUTH_PASSWORD_VALIDATORS = [
     {
