@@ -267,7 +267,6 @@
     try {
       await initWidget();
       setSendingState(true);
-      await ensureSession();
       const data = await fetchJson(sendUrl, {
         method: 'POST',
         headers: {

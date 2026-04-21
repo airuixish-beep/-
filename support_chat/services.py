@@ -132,7 +132,7 @@ def create_or_resume_session(*, token=None, visitor_name="", visitor_email="", v
 def create_message(*, session, sender_type, text, sender_user=None):
     normalized_text = (text or "").strip()
     if not normalized_text:
-        raise ValueError("消息内容不能为空")
+        raise ValueError("Message text cannot be empty.")
 
     if sender_type == ChatMessage.SenderType.VISITOR:
         source_language = translation_service.detect_language(normalized_text, session.visitor_language)
@@ -232,11 +232,13 @@ def get_session_queryset():
         "messages",
         filter=Q(messages__sender_type=ChatMessage.SenderType.VISITOR)
         & (Q(last_seen_by_operator_at__isnull=True) | Q(messages__created_at__gt=F("last_seen_by_operator_at"))),
+        distinct=True,
     )
     unread_for_visitor_count = Count(
         "messages",
         filter=Q(messages__sender_type=ChatMessage.SenderType.OPERATOR)
         & (Q(last_seen_by_visitor_at__isnull=True) | Q(messages__created_at__gt=F("last_seen_by_visitor_at"))),
+        distinct=True,
     )
     return ChatSession.objects.annotate(
         last_message_preview=last_message_preview,

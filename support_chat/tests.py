@@ -1,7 +1,8 @@
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.core.cache import cache
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from .models import ChatMessage, ChatSession
@@ -41,6 +42,9 @@ class SupportChatServiceTests(TestCase):
 
 
 class SupportChatViewTests(TestCase):
+    def setUp(self):
+        cache.clear()
+
     def test_public_session_and_send_flow(self):
         session_response = self.client.post(
             reverse("support_chat_public:session"),
@@ -58,6 +62,74 @@ class SupportChatViewTests(TestCase):
         self.assertEqual(send_response.status_code, 200)
         self.assertContains(send_response, "Hello")
 
+    @override_settings(CHAT_COOKIE_SECURE=True, CHAT_COOKIE_HTTPONLY=True)
+    def test_session_cookie_uses_secure_flags(self):
+        response = self.client.post(
+            reverse("support_chat_public:session"),
+            data='{"language":"en"}',
+            content_type="application/json",
+        )
+
+        cookie = response.cookies["support_chat_token"]
+        self.assertTrue(cookie["secure"])
+        self.assertTrue(cookie["httponly"])
+        self.assertEqual(cookie["samesite"], "Lax")
+
+    @override_settings(CHAT_RATE_LIMIT_WINDOW_SECONDS=60, CHAT_SESSION_RATE_LIMIT=1)
+    def test_session_endpoint_rate_limits(self):
+        first = self.client.post(
+            reverse("support_chat_public:session"),
+            data='{"language":"en"}',
+            content_type="application/json",
+        )
+        second = self.client.post(
+            reverse("support_chat_public:session"),
+            data='{"language":"en"}',
+            content_type="application/json",
+        )
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 429)
+        self.assertIn("Too many chat session requests", second.json()["error"])
+
+    @override_settings(CHAT_RATE_LIMIT_WINDOW_SECONDS=60, CHAT_SEND_RATE_LIMIT=1)
+    def test_send_endpoint_rate_limits(self):
+        self.client.post(
+            reverse("support_chat_public:session"),
+            data='{"language":"en"}',
+            content_type="application/json",
+        )
+
+        first = self.client.post(
+            reverse("support_chat_public:send"),
+            data='{"text":"Hello"}',
+            content_type="application/json",
+        )
+        second = self.client.post(
+            reverse("support_chat_public:send"),
+            data='{"text":"Again"}',
+            content_type="application/json",
+        )
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 429)
+        self.assertIn("sending messages too quickly", second.json()["error"])
+
+    @override_settings(CHAT_RATE_LIMIT_WINDOW_SECONDS=60, CHAT_POLL_RATE_LIMIT=1)
+    def test_messages_endpoint_rate_limits(self):
+        self.client.post(
+            reverse("support_chat_public:session"),
+            data='{"language":"en"}',
+            content_type="application/json",
+        )
+
+        first = self.client.get(reverse("support_chat_public:messages"))
+        second = self.client.get(reverse("support_chat_public:messages"))
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 429)
+        self.assertIn("Too many chat refresh requests", second.json()["error"])
+
     def test_closed_session_rejects_public_message(self):
         session = ChatSession.objects.create(status=ChatSession.Status.CLOSED)
         self.client.cookies["support_chat_token"] = session.public_token
@@ -70,6 +142,22 @@ class SupportChatViewTests(TestCase):
 
         self.assertEqual(response.status_code, 409)
         self.assertIn("conversation has ended", response.json()["error"])
+
+    def test_empty_message_returns_english_error(self):
+        self.client.post(
+            reverse("support_chat_public:session"),
+            data='{"language":"en"}',
+            content_type="application/json",
+        )
+
+        response = self.client.post(
+            reverse("support_chat_public:send"),
+            data='{"text":"   "}',
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["error"], "Message text cannot be empty.")
 
     def test_session_summary_exposes_contact_flags(self):
         response = self.client.post(
@@ -116,3 +204,17 @@ class SupportChatViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(session.messages.count(), 1)
         self.assertEqual(response.json()["message"]["text"], "你好")
+
+    def test_operator_sessions_summary_includes_last_message_preview(self):
+        user = get_user_model().objects.create_user(username="admin", password="pass", is_staff=True, is_superuser=True)
+        session = ChatSession.objects.create(visitor_language="en", operator_language="zh-hans")
+        create_message(session=session, sender_type=ChatMessage.SenderType.VISITOR, text="Hello there")
+        self.client.force_login(user)
+
+        response = self.client.get("/admin/support-chat/sessions/")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()["sessions"]
+        self.assertEqual(payload[0]["id"], session.id)
+        self.assertTrue(payload[0]["last_message_preview"])
+        self.assertEqual(payload[0]["unread_for_operator"], 1)
