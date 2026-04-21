@@ -2,6 +2,7 @@ import json
 
 from django.conf import settings
 from django.contrib import admin
+from django.core.cache import cache
 from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404
 from django.template.response import TemplateResponse
@@ -14,6 +15,7 @@ from .services import (
     create_or_resume_session,
     get_incremental_messages,
     get_preferred_visitor_language,
+    get_session_queryset,
     get_session_summary,
     mark_session_seen,
 )
@@ -33,7 +35,7 @@ def _parse_json_body(request):
 def _get_public_session(request):
     token = request.COOKIES.get(SESSION_COOKIE_NAME)
     if not token:
-        raise Http404("会话不存在")
+        raise Http404("Conversation not found")
     return get_object_or_404(ChatSession, public_token=token)
 
 
@@ -41,9 +43,36 @@ def _json_error(message, *, status=400):
     return JsonResponse({"error": message}, status=status)
 
 
+def _get_client_ip(request):
+    forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR", "")
+    if forwarded_for:
+        return forwarded_for.split(",")[0].strip()
+    return request.META.get("REMOTE_ADDR", "unknown")
+
+
+def _rate_limit_key(request, scope):
+    return f"support_chat_rate_limit:{scope}:{_get_client_ip(request)}"
+
+
+def _is_rate_limited(request, scope, limit):
+    window = max(getattr(settings, "CHAT_RATE_LIMIT_WINDOW_SECONDS", 60), 1)
+    key = _rate_limit_key(request, scope)
+    added = cache.add(key, 1, timeout=window)
+    if added:
+        return False
+    try:
+        count = cache.incr(key)
+    except ValueError:
+        cache.set(key, 1, timeout=window)
+        return False
+    return count > limit
+
+
 @ensure_csrf_cookie
 @require_POST
 def session_view(request):
+    if _is_rate_limited(request, "session", getattr(settings, "CHAT_SESSION_RATE_LIMIT", 20)):
+        return _json_error("Too many chat session requests. Please try again in a minute.", status=429)
     payload = _parse_json_body(request)
     token = request.COOKIES.get(SESSION_COOKIE_NAME)
     visitor_language = payload.get("language") or get_preferred_visitor_language(request)
@@ -64,12 +93,21 @@ def session_view(request):
             "widget_enabled": settings.CHAT_WIDGET_ENABLED,
         }
     )
-    response.set_cookie(SESSION_COOKIE_NAME, session.public_token, max_age=60 * 60 * 24 * 30, samesite="Lax")
+    response.set_cookie(
+        SESSION_COOKIE_NAME,
+        session.public_token,
+        max_age=60 * 60 * 24 * 30,
+        samesite="Lax",
+        secure=getattr(settings, "CHAT_COOKIE_SECURE", not settings.DEBUG),
+        httponly=getattr(settings, "CHAT_COOKIE_HTTPONLY", True),
+    )
     return response
 
 
 @require_GET
 def messages_view(request):
+    if _is_rate_limited(request, "poll", getattr(settings, "CHAT_POLL_RATE_LIMIT", 240)):
+        return _json_error("Too many chat refresh requests. Please try again shortly.", status=429)
     session = _get_public_session(request)
     after_id = int(request.GET.get("after", 0) or 0)
     messages = get_incremental_messages(session, after_id=after_id, viewer="visitor")
@@ -85,6 +123,8 @@ def mark_read_view(request):
 
 @require_POST
 def visitor_send_view(request):
+    if _is_rate_limited(request, "send", getattr(settings, "CHAT_SEND_RATE_LIMIT", 60)):
+        return _json_error("You are sending messages too quickly. Please wait a moment and try again.", status=429)
     session = _get_public_session(request)
     if session.status == ChatSession.Status.CLOSED:
         return _json_error("This conversation has ended. Please leave your email and we will follow up.", status=409)
@@ -98,7 +138,7 @@ def visitor_send_view(request):
 
 @require_GET
 def operator_console_view(request):
-    sessions = ChatSession.objects.prefetch_related("messages")[:20]
+    sessions = list(get_session_queryset()[:20])
     selected_session = sessions[0] if sessions else None
     if request.GET.get("session"):
         selected_session = get_object_or_404(ChatSession, pk=request.GET["session"])
@@ -118,7 +158,7 @@ def operator_console_view(request):
 
 @require_GET
 def operator_sessions_view(request):
-    sessions = [get_session_summary(session) for session in ChatSession.objects.order_by("-last_message_at", "-created_at")[:50]]
+    sessions = [get_session_summary(session) for session in get_session_queryset().order_by("-last_message_at", "-created_at")[:50]]
     return JsonResponse({"sessions": sessions})
 
 

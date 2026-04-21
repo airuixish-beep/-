@@ -3,6 +3,7 @@ from dataclasses import dataclass
 import requests
 from django.conf import settings
 from django.db import transaction
+from django.db.models import Count, F, OuterRef, Q, Subquery
 from django.utils import timezone
 
 from .models import ChatMessage, ChatSession
@@ -217,9 +218,42 @@ def mark_session_seen(session, *, viewer):
         session.save(update_fields=["last_seen_by_operator_at", "updated_at"])
 
 
+def get_session_queryset():
+    last_message_preview = Subquery(
+        ChatMessage.objects.filter(session=OuterRef("pk")).order_by("-id").values("body_for_operator")[:1]
+    )
+    last_message_preview_visitor = Subquery(
+        ChatMessage.objects.filter(session=OuterRef("pk")).order_by("-id").values("body_for_visitor")[:1]
+    )
+    last_message_sender_type = Subquery(
+        ChatMessage.objects.filter(session=OuterRef("pk")).order_by("-id").values("sender_type")[:1]
+    )
+    unread_for_operator_count = Count(
+        "messages",
+        filter=Q(messages__sender_type=ChatMessage.SenderType.VISITOR)
+        & (Q(last_seen_by_operator_at__isnull=True) | Q(messages__created_at__gt=F("last_seen_by_operator_at"))),
+    )
+    unread_for_visitor_count = Count(
+        "messages",
+        filter=Q(messages__sender_type=ChatMessage.SenderType.OPERATOR)
+        & (Q(last_seen_by_visitor_at__isnull=True) | Q(messages__created_at__gt=F("last_seen_by_visitor_at"))),
+    )
+    return ChatSession.objects.annotate(
+        last_message_preview=last_message_preview,
+        last_message_preview_visitor=last_message_preview_visitor,
+        last_message_sender_type=last_message_sender_type,
+        unread_for_operator_count=unread_for_operator_count,
+        unread_for_visitor_count=unread_for_visitor_count,
+    )
+
+
 def get_session_summary(session):
-    last_message = session.messages.order_by("-id").first()
     visitor_name = session.visitor_name or "Anonymous visitor"
+    last_message_preview = getattr(session, "last_message_preview", "") or ""
+    last_message_preview_visitor = getattr(session, "last_message_preview_visitor", "") or ""
+    last_message_sender_type = getattr(session, "last_message_sender_type", "") or ""
+    unread_for_operator = getattr(session, "unread_for_operator_count", None)
+    unread_for_visitor = getattr(session, "unread_for_visitor_count", None)
     return {
         "id": session.id,
         "public_token": session.public_token,
@@ -229,10 +263,10 @@ def get_session_summary(session):
         "visitor_language": session.visitor_language,
         "operator_language": session.operator_language,
         "last_message_at": session.last_message_at.isoformat() if session.last_message_at else None,
-        "unread_for_operator": session.unread_for_operator,
-        "unread_for_visitor": session.unread_for_visitor,
-        "last_message_preview": (last_message.display_for_operator if last_message else "")[:80],
-        "last_message_preview_visitor": (last_message.display_for_visitor if last_message else "")[:80],
-        "last_message_sender_type": last_message.sender_type if last_message else "",
+        "unread_for_operator": session.unread_for_operator if unread_for_operator is None else unread_for_operator,
+        "unread_for_visitor": session.unread_for_visitor if unread_for_visitor is None else unread_for_visitor,
+        "last_message_preview": last_message_preview[:80],
+        "last_message_preview_visitor": last_message_preview_visitor[:80],
+        "last_message_sender_type": last_message_sender_type,
         "has_contact_details": bool(session.visitor_name or session.visitor_email),
     }
