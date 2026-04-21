@@ -153,7 +153,7 @@
 <div class="dashboard-page">
   <div class="module dashboard-toolbar">
     <h2>经营驾驶舱</h2>
-    <p class="muted">当前范围：{{ filters.label }} / {{ filters.currency_label }}。营销与漏斗数据暂以“待接入”显示。</p>
+    <p class="muted">当前范围：{{ filters.label }} / {{ filters.currency_label }}。订单指标按创建时间或支付完成时间分别统计，支付分析按支付记录时间统计；营销与漏斗数据暂以“待接入”显示。</p>
     <form method="get">
       <div class="field-group">
         <label for="id_range">时间范围</label>
@@ -190,38 +190,39 @@
     <div class="module metric-card">
       <div class="label">订单总数</div>
       <div class="value">{{ kpis.order_count }}</div>
-      <div class="hint">按创建时间统计</div>
+      <div class="hint">{{ semantics.order_created }}</div>
     </div>
     <div class="module metric-card">
       <div class="label">已支付订单</div>
       <div class="value">{{ kpis.paid_order_count }}</div>
-      <div class="hint">按支付完成时间统计</div>
+      <div class="hint">{{ semantics.paid_orders }}</div>
     </div>
     <div class="module metric-card">
       <div class="label">支付订单销售额</div>
       <div class="value">{{ filters.currency }} {{ kpis.sales_total|floatformat:2 }}</div>
-      <div class="hint">仅含 payment_status=paid 订单</div>
+      <div class="hint">仅统计已支付订单，{{ semantics.paid_orders }}</div>
     </div>
     <div class="module metric-card">
       <div class="label">平均客单价</div>
       <div class="value">{{ filters.currency }} {{ kpis.average_order_value|floatformat:2 }}</div>
-      <div class="hint">销售额 / 已支付订单数</div>
+      <div class="hint">销售额 / 已支付订单数（{{ semantics.paid_orders }}）</div>
     </div>
     <div class="module metric-card">
       <div class="label">发货中订单</div>
       <div class="value">{{ kpis.shipping_in_progress_count }}</div>
-      <div class="hint">已购面单 / 已发货 / 运输中</div>
+      <div class="hint">{{ semantics.shipping }}</div>
     </div>
     <div class="module metric-card">
       <div class="label">已送达订单</div>
       <div class="value">{{ kpis.delivered_order_count }}</div>
-      <div class="hint">按发货状态聚合</div>
+      <div class="hint">{{ semantics.shipping }}</div>
     </div>
   </div>
 
   <div class="panel-grid">
     <div class="module">
-      <h2>订单与支付趋势</h2>
+      <h2>订单创建与支付完成趋势</h2>
+      <p class="muted">订单数按订单创建时间统计，支付金额按订单支付完成时间统计。</p>
       <table class="chart-table">
         <thead>
           <tr>
@@ -267,6 +268,7 @@
       </div>
       <div class="subsection">
         <h3>支付状态</h3>
+        <p class="muted">{{ semantics.payments }}</p>
         <ul class="status-list">
           {% for row in status_breakdowns.payments %}
           <li>
@@ -292,12 +294,13 @@
 
   <div class="panel-grid">
     <div class="module">
-      <h2>支付分析</h2>
+      <h2>支付记录分析</h2>
+      <p class="muted">{{ semantics.payments }}，用于观察支付渠道与失败记录，不作为经营收入主口径。</p>
       <table class="simple-table">
         <thead>
           <tr>
             <th>渠道</th>
-            <th>支付笔数</th>
+            <th>记录数</th>
             <th>成功笔数</th>
             <th>成功金额</th>
             <th>成功率</th>
@@ -318,19 +321,20 @@
         </tbody>
       </table>
       <div class="subsection">
-        <h3>最近失败支付（{{ payment_summary.failed_count }}）</h3>
+        <h3>最近失败支付记录（{{ payment_summary.failed_count }}）</h3>
         <ul class="compact-list">
           {% for payment in payment_summary.recent_failures %}
           <li>{{ payment.order.order_number }} / {{ payment.get_provider_display }} / {{ payment.created_at|date:"Y-m-d H:i" }}</li>
           {% empty %}
-          <li class="muted">当前时间范围没有失败支付。</li>
+          <li class="muted">当前时间范围没有失败支付记录。</li>
           {% endfor %}
         </ul>
       </div>
     </div>
 
     <div class="module">
-      <h2>发货分析</h2>
+      <h2>发货状态分析</h2>
+      <p class="muted">{{ semantics.shipping }}</p>
       <table class="simple-table">
         <thead>
           <tr>

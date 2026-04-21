@@ -88,13 +88,19 @@ def build_dashboard_context(filters):
         "shipping_summary": get_shipping_summary(filters),
         "product_summary": get_product_leaderboards(filters),
         "geo_summary": get_geo_summary(filters),
+        "semantics": {
+            "order_created": "按订单创建时间统计",
+            "paid_orders": "按订单支付完成时间统计",
+            "payments": "按支付记录创建时间统计",
+            "shipping": "基于所选范围内已支付订单展示当前发货状态",
+        },
     }
 
 
 def get_kpis(filters):
     orders = _filter_by_date(Order.objects.filter(currency=filters.currency), "created_at", filters)
     paid_orders = _paid_orders(filters)
-    shipments = _filter_by_date(Shipment.objects.filter(order__currency=filters.currency), "created_at", filters)
+    shipments = _shipments_for_paid_orders(filters)
 
     sales_total = paid_orders.aggregate(total=Sum("total_amount"))["total"] or ZERO_DECIMAL
     paid_order_count = paid_orders.count()
@@ -212,12 +218,12 @@ def get_payment_summary(filters):
 
 
 def get_shipping_summary(filters):
-    shipments = _filter_by_date(Shipment.objects.filter(order__currency=filters.currency), "created_at", filters)
+    shipments = _shipments_for_paid_orders(filters)
     rows = _status_rows(shipments, "status", Shipment.Status.choices)
 
     return {
         "rows": rows,
-        "exception_shipments": list(shipments.filter(status=Shipment.Status.EXCEPTION).select_related("order").order_by("-created_at")[:5]),
+        "exception_shipments": list(shipments.filter(status=Shipment.Status.EXCEPTION).select_related("order").order_by("-updated_at", "-created_at")[:5]),
     }
 
 
@@ -296,6 +302,10 @@ def _paid_orders(filters):
         "paid_at",
         filters,
     )
+
+
+def _shipments_for_paid_orders(filters):
+    return Shipment.objects.filter(order__in=_paid_orders(filters))
 
 
 def _filter_by_date(queryset, field_name, filters):

@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import datetime, time, timedelta
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
@@ -60,6 +60,8 @@ class AnalyticsDashboardAccessTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "经营驾驶舱")
+        self.assertContains(response, "支付记录分析")
+        self.assertContains(response, "发货状态分析")
         self.assertContains(response, "当前时间范围暂无支付记录。")
         self.assertContains(response, "当前没有低库存可售商品。")
 
@@ -170,6 +172,78 @@ class AnalyticsDashboardServiceTests(TestCase):
         self.assertIn("热销戒指", low_stock_names)
         self.assertEqual(country_rows["CN"]["order_count"], 2)
         self.assertEqual(country_rows["CN"]["sales_total"], Decimal("295.00"))
+
+    def test_dashboard_uses_distinct_time_semantics_for_orders_payments_and_shipping(self):
+        out_of_range_day = timezone.localdate() - timedelta(days=45)
+        in_range_day = timezone.localdate() - timedelta(days=2)
+
+        created_in_range_paid_outside = self._create_order(
+            customer_name="Dana",
+            customer_email="dana@example.com",
+            shipping_city="Shenzhen",
+            shipping_country="CN",
+            shipping_amount=Decimal("12.00"),
+            items=[(self.secondary_product, 1)],
+            mark_paid=False,
+            provider=Payment.Provider.STRIPE,
+        )
+        created_in_range_paid_outside.created_at = timezone.make_aware(datetime.combine(in_range_day, time.min))
+        created_in_range_paid_outside.save(update_fields=["created_at"])
+        created_in_range_paid_outside.payment_status = Order.PaymentStatus.PAID
+        created_in_range_paid_outside.paid_at = timezone.make_aware(datetime.combine(out_of_range_day, time.min))
+        created_in_range_paid_outside.save(update_fields=["payment_status", "paid_at", "updated_at"])
+        created_in_range_paid_outside_payment = created_in_range_paid_outside.payments.first()
+        created_in_range_paid_outside_payment.status = Payment.Status.PAID
+        created_in_range_paid_outside_payment.paid_at = created_in_range_paid_outside.paid_at
+        created_in_range_paid_outside_payment.created_at = timezone.make_aware(datetime.combine(in_range_day, time.min))
+        created_in_range_paid_outside_payment.save(update_fields=["status", "paid_at", "created_at", "updated_at"])
+        Shipment.objects.create(
+            order=created_in_range_paid_outside,
+            provider=Shipment.Provider.MANUAL,
+            status=Shipment.Status.DELIVERED,
+        )
+
+        created_outside_paid_in_range = self._create_order(
+            customer_name="Ethan",
+            customer_email="ethan@example.com",
+            shipping_city="Hangzhou",
+            shipping_country="CN",
+            shipping_amount=Decimal("9.00"),
+            items=[(self.secondary_product, 1)],
+            mark_paid=True,
+            provider=Payment.Provider.STRIPE,
+            shipment_status=Shipment.Status.SHIPPED,
+            paid_at=timezone.make_aware(datetime.combine(in_range_day, time.min)),
+        )
+        created_outside_paid_in_range.created_at = timezone.make_aware(datetime.combine(out_of_range_day, time.min))
+        created_outside_paid_in_range.save(update_fields=["created_at"])
+        created_outside_paid_in_range_payment = created_outside_paid_in_range.payments.first()
+        created_outside_paid_in_range_payment.created_at = timezone.make_aware(datetime.combine(out_of_range_day, time.min))
+        created_outside_paid_in_range_payment.save(update_fields=["created_at", "updated_at"])
+        shipment = created_outside_paid_in_range.shipments.first()
+        shipment.created_at = timezone.make_aware(datetime.combine(out_of_range_day, time.min))
+        shipment.save(update_fields=["created_at", "updated_at"])
+
+        filters = parse_dashboard_filters(
+            QueryDict(f"range=custom&start_date={in_range_day.isoformat()}&end_date={in_range_day.isoformat()}&currency=USD")
+        )
+        context = build_dashboard_context(filters)
+
+        self.assertEqual(context["kpis"]["order_count"], 1)
+        self.assertEqual(context["kpis"]["paid_order_count"], 1)
+        self.assertEqual(context["kpis"]["sales_total"], created_outside_paid_in_range.total_amount)
+        self.assertEqual(context["kpis"]["shipping_in_progress_count"], 1)
+        self.assertEqual(context["kpis"]["delivered_order_count"], 0)
+        self.assertEqual(context["payment_summary"]["failed_count"], 0)
+
+        trend_row = context["order_trends"]["rows"][0]
+        self.assertEqual(trend_row["order_count"], 1)
+        self.assertEqual(trend_row["paid_count"], 1)
+        self.assertEqual(trend_row["paid_amount"], created_outside_paid_in_range.total_amount)
+
+        payment_rows = {row["provider"]: row for row in context["payment_summary"]["providers"]}
+        self.assertEqual(payment_rows[Payment.Provider.STRIPE]["total_count"], 1)
+        self.assertEqual(payment_rows[Payment.Provider.STRIPE]["paid_count"], 1)
 
     def _create_order(
         self,
