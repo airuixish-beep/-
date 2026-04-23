@@ -2,11 +2,12 @@ from django.core.files.storage import default_storage
 from django.shortcuts import render
 
 from products.models import Product
+from products.services import get_recommended_products
 
 
 def home(request):
-    featured_products = Product.objects.filter(is_active=True, is_featured=True)[:4]
-    return render(request, "pages/home.html", {"featured_products": featured_products})
+    recommended_products = get_recommended_products(limit=4)
+    return render(request, "pages/home.html", {"recommended_products": recommended_products})
 
 
 def about(request):

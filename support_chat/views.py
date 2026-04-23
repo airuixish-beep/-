@@ -43,6 +43,17 @@ def _json_error(message, *, status=400):
     return JsonResponse({"error": message}, status=status)
 
 
+def _get_int_query_param(request, name, *, default=0):
+    raw_value = request.GET.get(name, default)
+    try:
+        value = int(raw_value or default)
+    except (TypeError, ValueError):
+        raise ValueError(f"Invalid '{name}' parameter.")
+    if value < 0:
+        raise ValueError(f"Invalid '{name}' parameter.")
+    return value
+
+
 def _get_client_ip(request):
     forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR", "")
     if forwarded_for:
@@ -109,7 +120,10 @@ def messages_view(request):
     if _is_rate_limited(request, "poll", getattr(settings, "CHAT_POLL_RATE_LIMIT", 240)):
         return _json_error("Too many chat refresh requests. Please try again shortly.", status=429)
     session = _get_public_session(request)
-    after_id = int(request.GET.get("after", 0) or 0)
+    try:
+        after_id = _get_int_query_param(request, "after")
+    except ValueError as exc:
+        return _json_error(str(exc))
     messages = get_incremental_messages(session, after_id=after_id, viewer="visitor")
     return JsonResponse({"messages": messages, "session": get_session_summary(session)})
 
@@ -164,8 +178,14 @@ def operator_sessions_view(request):
 
 @require_GET
 def operator_messages_view(request):
-    session = get_object_or_404(ChatSession, pk=request.GET.get("session_id"))
-    after_id = int(request.GET.get("after", 0) or 0)
+    session_id = request.GET.get("session_id")
+    if not session_id:
+        return _json_error("Invalid 'session_id' parameter.")
+    session = get_object_or_404(ChatSession, pk=session_id)
+    try:
+        after_id = _get_int_query_param(request, "after")
+    except ValueError as exc:
+        return _json_error(str(exc))
     mark_session_seen(session, viewer="operator")
     return JsonResponse({"messages": get_incremental_messages(session, after_id=after_id, viewer="operator")})
 

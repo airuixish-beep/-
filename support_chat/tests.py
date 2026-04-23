@@ -130,6 +130,18 @@ class SupportChatViewTests(TestCase):
         self.assertEqual(second.status_code, 429)
         self.assertIn("Too many chat refresh requests", second.json()["error"])
 
+    def test_messages_endpoint_rejects_invalid_after(self):
+        self.client.post(
+            reverse("support_chat_public:session"),
+            data='{"language":"en"}',
+            content_type="application/json",
+        )
+
+        response = self.client.get(reverse("support_chat_public:messages"), {"after": "abc"})
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["error"], "Invalid 'after' parameter.")
+
     def test_closed_session_rejects_public_message(self):
         session = ChatSession.objects.create(status=ChatSession.Status.CLOSED)
         self.client.cookies["support_chat_token"] = session.public_token
@@ -218,3 +230,22 @@ class SupportChatViewTests(TestCase):
         self.assertEqual(payload[0]["id"], session.id)
         self.assertTrue(payload[0]["last_message_preview"])
         self.assertEqual(payload[0]["unread_for_operator"], 1)
+
+    def test_operator_messages_rejects_invalid_after(self):
+        user = get_user_model().objects.create_user(username="ops", password="pass", is_staff=True, is_superuser=True)
+        session = ChatSession.objects.create(visitor_language="en", operator_language="zh-hans")
+        self.client.force_login(user)
+
+        response = self.client.get("/admin/support-chat/messages/", {"session_id": session.id, "after": "abc"})
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["error"], "Invalid 'after' parameter.")
+
+    def test_operator_messages_requires_session_id(self):
+        user = get_user_model().objects.create_user(username="support", password="pass", is_staff=True, is_superuser=True)
+        self.client.force_login(user)
+
+        response = self.client.get("/admin/support-chat/messages/")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["error"], "Invalid 'session_id' parameter.")

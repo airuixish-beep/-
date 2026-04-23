@@ -94,6 +94,13 @@
       }
     }
 
+    function renderInitialPlaceholder() {
+      const placeholder = messagesNode.querySelector('[data-role="initial-message"]');
+      messagesNode.innerHTML = placeholder ? placeholder.outerHTML : '';
+      lastMessageId = 0;
+      unreadCount = 0;
+    }
+
     async function ensureSession() {
       const payload = {
         visitor_name: form.elements.visitor_name?.value.trim() || '',
@@ -111,10 +118,8 @@
 
       pollInterval = Number(data.poll_interval_ms || pollInterval);
       backgroundPollInterval = Number(data.background_poll_interval_ms || backgroundPollInterval);
-      messagesNode.innerHTML = '';
-      lastMessageId = 0;
-      unreadCount = 0;
       hasSentMessage = Boolean((data.messages || []).length);
+      renderInitialPlaceholder();
 
       if (data.session?.visitor_name && form.elements.visitor_name) {
         form.elements.visitor_name.value = data.session.visitor_name;

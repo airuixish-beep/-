@@ -10,6 +10,7 @@ class ChatPageViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, "pages/chat.html")
         self.assertContains(response, 'id="support-chat-page"')
+        self.assertContains(response, 'data-role="initial-message"')
         self.assertContains(response, "js/support_chat_shared.js")
         self.assertContains(response, "js/support_chat_page.js")
         self.assertNotContains(response, 'id="support-chat-widget"')
