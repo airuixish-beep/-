@@ -13,6 +13,18 @@ def about(request):
     return render(request, "pages/about.html")
 
 
+def chat(request):
+    consultation_product = Product.objects.filter(is_active=True, hero_image__isnull=False).order_by("sort_order", "-created_at").first()
+    return render(
+        request,
+        "pages/chat.html",
+        {
+            "hide_support_chat_widget": True,
+            "consultation_product": consultation_product,
+        },
+    )
+
+
 def upload_test(request):
     upload_result = None
 

@@ -54,6 +54,8 @@
       {% block content %}{% endblock %}
     </main>
     {% include 'includes/footer.html' %}
-    {% include 'includes/support_chat_widget.html' %}
+    {% if not hide_support_chat_widget %}
+      {% include 'includes/support_chat_widget.html' %}
+    {% endif %}
   </body>
 </html>

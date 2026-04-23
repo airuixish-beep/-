@@ -14,3 +14,26 @@
 .support-chat__messages article + article {
   margin-top: 0.75rem;
 }
+
+.support-chat-page__messages article + article {
+  margin-top: 0.9rem;
+}
+
+.support-chat-page__messages {
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(200, 169, 107, 0.35) rgba(255, 255, 255, 0.03);
+}
+
+.support-chat-page__messages::-webkit-scrollbar {
+  width: 8px;
+}
+
+.support-chat-page__messages::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.support-chat-page__messages::-webkit-scrollbar-thumb {
+  background: rgba(200, 169, 107, 0.35);
+  border-radius: 9999px;
+}
