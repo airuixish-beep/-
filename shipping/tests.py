@@ -10,7 +10,7 @@ from orders.models import Order, OrderItem
 from products.models import Product
 
 from .models import Shipment, ShipmentEvent
-from .services import EasyPostService
+from .services import EasyPostService, ShippingConfigurationError
 
 
 class ShipmentModelTests(TestCase):
@@ -61,6 +61,25 @@ class ShipmentModelTests(TestCase):
         order.refresh_from_db()
         self.assertEqual(order.fulfillment_status, Order.FulfillmentStatus.DELIVERED)
         self.assertEqual(order.status, Order.Status.DELIVERED)
+
+    def test_sync_fulfillment_from_cancelled_shipment_cancels_order(self):
+        order = Order.objects.create(
+            customer_name="Carol",
+            customer_email="carol@example.com",
+            shipping_country="US",
+            shipping_city="Austin",
+            shipping_postal_code="73301",
+            shipping_address_line1="3 River Rd",
+        )
+        order.payment_status = Order.PaymentStatus.PAID
+        order.status = Order.Status.PAID
+        order.save(update_fields=["payment_status", "status", "updated_at"])
+
+        order.sync_fulfillment_from_shipment_status(Shipment.Status.CANCELLED)
+        order.refresh_from_db()
+
+        self.assertEqual(order.fulfillment_status, Order.FulfillmentStatus.CANCELLED)
+        self.assertEqual(order.status, Order.Status.CANCELLED)
 
 
 class EasyPostServiceTests(TestCase):
@@ -135,3 +154,44 @@ class EasyPostServiceTests(TestCase):
         self.assertEqual(order.status, Order.Status.PROCESSING)
         parcel = EasyPostService._parcel_for_order(order)
         self.assertEqual(parcel["weight"], 24.0)
+
+    @override_settings(
+        EASYPOST_API_KEY="ep_test",
+        SHIP_FROM_ADDRESS_LINE1="1 Warehouse St",
+        SHIP_FROM_CITY="San Jose",
+        SHIP_FROM_STATE="CA",
+        SHIP_FROM_POSTAL_CODE="95112",
+        SHIP_FROM_COUNTRY="US",
+    )
+    def test_create_shipment_rejects_unpaid_order(self):
+        product = Product.objects.create(
+            name="Ship Product 2",
+            slug="ship-product-2",
+            sku="SKU-SHIP-2",
+            price=Decimal("40.00"),
+            currency=Product.Currency.USD,
+            stock_quantity=10,
+            is_active=True,
+            is_purchasable=True,
+        )
+        order = Order.objects.create(
+            customer_name="Nina",
+            customer_email="nina@example.com",
+            shipping_country="US",
+            shipping_city="Denver",
+            shipping_state="CO",
+            shipping_postal_code="80202",
+            shipping_address_line1="10 Market St",
+        )
+        OrderItem.objects.create(
+            order=order,
+            product=product,
+            product_name_snapshot=product.name,
+            sku_snapshot=product.sku,
+            unit_price=product.price,
+            quantity=1,
+        )
+        shipment = Shipment.objects.create(order=order)
+
+        with self.assertRaisesMessage(ShippingConfigurationError, "只有已支付订单才能创建发货单"):
+            EasyPostService.create_shipment(shipment)

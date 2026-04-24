@@ -1,5 +1,4 @@
 from django.contrib import admin, messages
-from django.utils import timezone
 
 from shipping.models import Shipment
 from shipping.services import EasyPostService, ShippingConfigurationError
@@ -35,8 +34,16 @@ def create_easypost_shipment(modeladmin, request, queryset):
 
 @admin.action(description="将订单标记为处理中")
 def mark_processing(modeladmin, request, queryset):
-    updated = queryset.update(status=Order.Status.PROCESSING, fulfillment_status=Order.FulfillmentStatus.PROCESSING, updated_at=timezone.now())
-    modeladmin.message_user(request, f"已更新 {updated} 个订单。")
+    updated = 0
+    for order in queryset:
+        try:
+            order.mark_processing()
+        except ValueError as exc:
+            modeladmin.message_user(request, f"{order.order_number}: {exc}", level=messages.ERROR)
+        else:
+            updated += 1
+    if updated:
+        modeladmin.message_user(request, f"已更新 {updated} 个订单。")
 
 
 @admin.register(Order)

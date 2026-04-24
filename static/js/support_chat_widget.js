@@ -11,7 +11,6 @@
   const detailsToggle = root.querySelector('[data-role="details-toggle"]');
   const detailsFields = root.querySelector('[data-role="details-fields"]');
   const teaserDelay = Number(root.dataset.teaserDelay || 8000);
-
   const teaserDismissedKey = 'support-chat-teaser-dismissed';
   const panelOpenedKey = 'support-chat-panel-opened';
 
@@ -79,8 +78,8 @@
   function closePanel() {
     panel.classList.add('hidden');
     toggleButton.classList.remove('hidden');
-    const form = client.getForm();
-    if (client.getHasSentMessage() && !form.elements.visitor_email.value.trim()) {
+    const emailField = client.getForm().elements.visitor_email;
+    if (client.getHasSentMessage() && emailField && !emailField.value.trim()) {
       setDetailsExpanded(true);
       client.getStatusNode().textContent = 'Leave your email if you want us to follow up.';
     }
@@ -91,11 +90,10 @@
     client.clearError();
     try {
       await client.init();
-      openPanel();
     } catch (error) {
       client.showError(error.message);
-      openPanel();
     }
+    openPanel();
   }
 
   toggleButton.addEventListener('click', handleOpen);
@@ -111,9 +109,9 @@
   detailsToggle.addEventListener('click', function () {
     setDetailsExpanded(detailsFields.classList.contains('hidden'));
   });
-
   document.addEventListener('visibilitychange', function () {
     client.restartPolling();
   });
+
   maybeShowTeaser();
 })();

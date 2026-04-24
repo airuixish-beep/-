@@ -18,6 +18,9 @@ class ChatSessionAdmin(admin.ModelAdmin):
     search_fields = ("visitor_name", "visitor_email", "public_token")
     readonly_fields = ("public_token", "last_message_at", "last_seen_by_visitor_at", "last_seen_by_operator_at", "created_at", "updated_at")
 
+    def has_module_permission(self, request):
+        return False
+
 
 @admin.register(ChatMessage)
 class ChatMessageAdmin(admin.ModelAdmin):
@@ -25,3 +28,6 @@ class ChatMessageAdmin(admin.ModelAdmin):
     list_filter = ("sender_type", "translation_status", "original_language", "created_at")
     search_fields = ("body_original", "body_for_visitor", "body_for_operator", "session__public_token")
     readonly_fields = ("translation_meta", "created_at")
+
+    def has_module_permission(self, request):
+        return False

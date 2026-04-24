@@ -19,6 +19,20 @@ services:
       timeout: 5s
       retries: 20
 
+  redis:
+    image: redis:7-alpine
+    container_name: xuanor_site_redis
+    restart: unless-stopped
+    command: redis-server --save 60 1 --loglevel warning
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    profiles: ["realtime"]
+
   web:
     build:
       context: .
@@ -29,11 +43,30 @@ services:
       db:
         condition: service_healthy
     ports:
-      - "8000:8000"
+      - "${WEB_BIND:-127.0.0.1}:${WEB_PORT:-8000}:8000"
     volumes:
       - media_data:/app/media
+      - static_data:/app/staticfiles
     restart: unless-stopped
+
+  proxy:
+    image: nginx:1.27-alpine
+    container_name: xuanor_site_proxy
+    depends_on:
+      - web
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./deploy/certs:/etc/nginx/certs:ro
+      - media_data:/var/www/media:ro
+      - static_data:/var/www/static:ro
+    restart: unless-stopped
+    profiles: ["prod"]
 
 volumes:
   mysql_data:
   media_data:
+  redis_data:
+  static_data:

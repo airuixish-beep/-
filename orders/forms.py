@@ -3,7 +3,7 @@ from decimal import Decimal
 from django import forms
 from django.conf import settings
 
-from payments.models import Payment
+from payments.services import get_available_payment_provider_choices
 from products.models import Product
 
 
@@ -21,11 +21,12 @@ class CheckoutForm(forms.Form):
     shipping_address_line1 = forms.CharField(max_length=255)
     shipping_address_line2 = forms.CharField(max_length=255, required=False)
     quantity = forms.IntegerField(min_value=1, initial=1)
-    payment_provider = forms.ChoiceField(choices=Payment.Provider.choices)
+    payment_provider = forms.ChoiceField(choices=())
 
     def __init__(self, *args, product: Product, **kwargs):
         self.product = product
         super().__init__(*args, **kwargs)
+        self.fields["payment_provider"].choices = get_available_payment_provider_choices()
         self._apply_widget_classes()
 
     def _apply_widget_classes(self):
@@ -39,10 +40,19 @@ class CheckoutForm(forms.Form):
             raise forms.ValidationError("库存不足。")
         return quantity
 
+    def clean_payment_provider(self):
+        provider = self.cleaned_data["payment_provider"]
+        available_providers = {value for value, _label in self.fields["payment_provider"].choices}
+        if provider not in available_providers:
+            raise forms.ValidationError("当前支付方式暂不可用。")
+        return provider
+
     def clean(self):
         cleaned_data = super().clean()
         if not self.product.can_purchase:
             raise forms.ValidationError("当前商品暂不支持购买。")
+        if not self.fields["payment_provider"].choices:
+            raise forms.ValidationError("当前没有可用的支付方式。")
         return cleaned_data
 
     def shipping_amount(self):

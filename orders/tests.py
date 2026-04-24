@@ -85,6 +85,21 @@ class OrderModelTests(TestCase):
         self.product.refresh_from_db()
         self.assertEqual(self.product.stock_quantity, 3)
 
+    def test_mark_processing_requires_paid_order(self):
+        order = Order.objects.create(
+            customer_name="Alice",
+            customer_email="alice@example.com",
+            shipping_country="US",
+            shipping_city="New York",
+            shipping_postal_code="10001",
+            shipping_address_line1="1 Main St",
+            shipping_amount=Decimal("15.00"),
+            currency=Product.Currency.USD,
+        )
+
+        with self.assertRaisesMessage(ValueError, "未支付订单不能标记为处理中"):
+            order.mark_processing()
+
 
 class OrderDetailTests(TestCase):
     def setUp(self):

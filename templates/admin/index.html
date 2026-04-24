@@ -30,6 +30,11 @@
     <p>查看订单、支付、发货、商品和地区分布的综合经营数据。</p>
     <p><a class="button default" href="{% url 'analytics_dashboard:index' %}">进入数据看板</a></p>
   </div>
+  <div class="module dashboard-entry">
+    <h2>在线客服</h2>
+    <p>进入统一客服控制台，集中处理访客会话、人工回复和 OpenClaw 辅助草稿。</p>
+    <p><a class="button default" href="{% url 'support_chat_console' %}">进入在线客服控制台</a></p>
+  </div>
   {% include "admin/app_list.html" with app_list=app_list show_changelinks=True %}
 </div>
 {% endblock %}

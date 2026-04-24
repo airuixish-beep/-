@@ -15,10 +15,24 @@ SECRET_KEY = env(
     default="dev-only-secret-key-change-me",
 )
 DEBUG = env("DEBUG")
+if not DEBUG and SECRET_KEY in {"", "change-me", "dev-only-secret-key-change-me"}:
+    raise RuntimeError("SECRET_KEY must be set to a secure value when DEBUG is False.")
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["127.0.0.1", "localhost"])
 CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
+USE_X_FORWARDED_HOST = env.bool("USE_X_FORWARDED_HOST", default=not DEBUG)
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+SECURE_SSL_REDIRECT = env.bool("SECURE_SSL_REDIRECT", default=not DEBUG)
+SESSION_COOKIE_SECURE = env.bool("SESSION_COOKIE_SECURE", default=not DEBUG)
+CSRF_COOKIE_SECURE = env.bool("CSRF_COOKIE_SECURE", default=not DEBUG)
+SECURE_HSTS_SECONDS = env.int("SECURE_HSTS_SECONDS", default=31536000 if not DEBUG else 0)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = env.bool("SECURE_HSTS_INCLUDE_SUBDOMAINS", default=not DEBUG)
+SECURE_HSTS_PRELOAD = env.bool("SECURE_HSTS_PRELOAD", default=not DEBUG)
+SECURE_REFERRER_POLICY = env("SECURE_REFERRER_POLICY", default="same-origin")
+SECURE_CONTENT_TYPE_NOSNIFF = env.bool("SECURE_CONTENT_TYPE_NOSNIFF", default=not DEBUG)
 
 INSTALLED_APPS = [
+    "daphne",
+    "channels",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -66,6 +80,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = "config.wsgi.application"
+ASGI_APPLICATION = "config.asgi.application"
 
 DB_ENGINE = env("DB_ENGINE", default="sqlite").lower()
 
@@ -89,6 +104,39 @@ else:
             "NAME": SQLITE_PATH,
         }
     }
+
+CACHE_BACKEND = env("CACHE_BACKEND", default="filebased").lower()
+CACHE_LOCATION = env("CACHE_LOCATION", default="/tmp/xuanor-cache")
+CACHE_KEY_PREFIX = env("CACHE_KEY_PREFIX", default="xuanor")
+CACHE_TABLE = env("CACHE_TABLE", default="django_cache")
+
+if CACHE_BACKEND in {"locmem", "localmemory", "local-memory"}:
+    DEFAULT_CACHE = {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "xuanor-default",
+    }
+elif CACHE_BACKEND in {"filebased", "filebasedcache", "file", "filesystem"}:
+    DEFAULT_CACHE = {
+        "BACKEND": "django.core.cache.backends.filebased.FileBasedCache",
+        "LOCATION": CACHE_LOCATION,
+    }
+elif CACHE_BACKEND in {"database", "db"}:
+    DEFAULT_CACHE = {
+        "BACKEND": "django.core.cache.backends.db.DatabaseCache",
+        "LOCATION": CACHE_TABLE,
+    }
+elif CACHE_BACKEND == "dummy":
+    DEFAULT_CACHE = {
+        "BACKEND": "django.core.cache.backends.dummy.DummyCache",
+    }
+else:
+    DEFAULT_CACHE = {
+        "BACKEND": env("CACHE_BACKEND"),
+        "LOCATION": CACHE_LOCATION,
+    }
+
+DEFAULT_CACHE["KEY_PREFIX"] = CACHE_KEY_PREFIX
+CACHES = {"default": DEFAULT_CACHE}
 
 AUTH_PASSWORD_VALIDATORS = [
     {
@@ -147,12 +195,39 @@ CHAT_DEFAULT_OPERATOR_LANGUAGE = env("CHAT_DEFAULT_OPERATOR_LANGUAGE", default="
 CHAT_POLL_INTERVAL_MS = env.int("CHAT_POLL_INTERVAL_MS", default=3000)
 CHAT_TRANSLATION_PROVIDER = env("CHAT_TRANSLATION_PROVIDER", default="mock")
 CHAT_TRANSLATION_API_KEY = env("CHAT_TRANSLATION_API_KEY", default="")
+OPENCLAW_ENABLED = env.bool("OPENCLAW_ENABLED", default=False)
+OPENCLAW_COMMAND = env("OPENCLAW_COMMAND", default="openclaw")
+OPENCLAW_AGENT_ID = env("OPENCLAW_AGENT_ID", default="")
+OPENCLAW_TIMEOUT_SECONDS = env.int("OPENCLAW_TIMEOUT_SECONDS", default=60)
+OPENCLAW_AUTO_REPLY_ENABLED = env.bool("OPENCLAW_AUTO_REPLY_ENABLED", default=True)
+OPENCLAW_DRAFT_ENABLED = env.bool("OPENCLAW_DRAFT_ENABLED", default=True)
+OPENCLAW_SYSTEM_LABEL = env("OPENCLAW_SYSTEM_LABEL", default="OpenClaw")
 CHAT_COOKIE_SECURE = env.bool("CHAT_COOKIE_SECURE", default=not DEBUG)
 CHAT_COOKIE_HTTPONLY = env.bool("CHAT_COOKIE_HTTPONLY", default=True)
 CHAT_RATE_LIMIT_WINDOW_SECONDS = env.int("CHAT_RATE_LIMIT_WINDOW_SECONDS", default=60)
 CHAT_SESSION_RATE_LIMIT = env.int("CHAT_SESSION_RATE_LIMIT", default=20)
 CHAT_SEND_RATE_LIMIT = env.int("CHAT_SEND_RATE_LIMIT", default=60)
 CHAT_POLL_RATE_LIMIT = env.int("CHAT_POLL_RATE_LIMIT", default=240)
+CHAT_REALTIME_ENABLED = env.bool("CHAT_REALTIME_ENABLED", default=False)
+CHANNEL_LAYER_BACKEND = env("CHANNEL_LAYER_BACKEND", default="memory").lower()
+REDIS_URL = env("REDIS_URL", default="redis://127.0.0.1:6379/1")
+
+if not CHAT_REALTIME_ENABLED or CHANNEL_LAYER_BACKEND in {"memory", "inmemory", "in_memory", "locmem"}:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels.layers.InMemoryChannelLayer",
+        }
+    }
+else:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels_redis.core.RedisChannelLayer",
+            "CONFIG": {
+                "hosts": [REDIS_URL],
+            },
+        }
+    }
+
 SHIP_FROM_ADDRESS_LINE1 = env("SHIP_FROM_ADDRESS_LINE1", default="")
 SHIP_FROM_ADDRESS_LINE2 = env("SHIP_FROM_ADDRESS_LINE2", default="")
 SHIP_FROM_CITY = env("SHIP_FROM_CITY", default="")

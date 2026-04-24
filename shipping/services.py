@@ -56,6 +56,8 @@ class EasyPostService:
         client = cls._client()
         cls._validate_from_address()
         order = shipment.order
+        if order.payment_status != order.PaymentStatus.PAID:
+            raise ShippingConfigurationError("只有已支付订单才能创建发货单")
         request = {
             "to_address": {
                 "name": order.customer_name,

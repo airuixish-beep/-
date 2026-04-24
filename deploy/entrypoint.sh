@@ -3,6 +3,13 @@ set -eu
 
 mkdir -p /app/media /app/staticfiles
 
+if [ "${OPENCLAW_ENABLED:-False}" = "True" ] || [ "${OPENCLAW_ENABLED:-false}" = "true" ]; then
+  if ! command -v "${OPENCLAW_COMMAND:-openclaw}" >/dev/null 2>&1; then
+    echo "OpenClaw command not found: ${OPENCLAW_COMMAND:-openclaw}" >&2
+    exit 1
+  fi
+fi
+
 if [ "${DB_ENGINE:-sqlite}" = "mysql" ]; then
   python - <<'PY'
 import os
@@ -23,7 +30,12 @@ else:
 PY
 fi
 
-python manage.py migrate --noinput
-python manage.py collectstatic --noinput
+if [ "${DEBUG:-False}" = "False" ] || [ "${DEBUG:-false}" = "false" ]; then
+  python manage.py check --deploy --fail-level WARNING
+fi
 
-exec gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 2 --timeout 120
+if [ "$#" -gt 0 ]; then
+  exec "$@"
+fi
+
+exec daphne -b 0.0.0.0 -p 8000 config.asgi:application

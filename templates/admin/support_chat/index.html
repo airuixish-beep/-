@@ -1,10 +1,16 @@
 {% extends 'admin/base_site.html' %}
 
 {% block content %}
-  <div id="support-chat-admin" data-sessions-url="/admin/support-chat/sessions/" data-messages-url="/admin/support-chat/messages/" data-reply-url="/admin/support-chat/reply/" data-close-url="/admin/support-chat/close/" data-poll-interval="{{ poll_interval_ms }}" class="space-y-6">
+  <div id="support-chat-admin" data-sessions-url="/admin/support-chat/sessions/" data-messages-url="/admin/support-chat/messages/" data-reply-url="/admin/support-chat/reply/" data-draft-url="/admin/support-chat/draft/" data-close-url="/admin/support-chat/close/" data-poll-interval="{{ poll_interval_ms }}" data-realtime-enabled="{{ realtime_enabled|yesno:'true,false' }}" data-websocket-url="{{ operator_websocket_url }}" class="space-y-6">
     <div>
       <h1 style="margin-bottom: 4px;">Support chat</h1>
       <p style="margin: 0; color: #666;">Visitor and agent messages are translated automatically.</p>
+      <div style="margin-top: 10px; font-size: 12px; color: #444; display: flex; gap: 12px; flex-wrap: wrap;">
+        <span>OpenClaw: <strong>{% if openclaw_enabled %}Enabled{% else %}Disabled{% endif %}</strong></span>
+        <span>Auto reply: <strong>{% if openclaw_auto_reply_enabled %}On{% else %}Off{% endif %}</strong></span>
+        <span>Drafts: <strong>{% if openclaw_draft_enabled %}On{% else %}Off{% endif %}</strong></span>
+        <span>Label: <strong>{{ openclaw_label }}</strong></span>
+      </div>
     </div>
     <div style="display: grid; grid-template-columns: 340px 1fr; gap: 24px; align-items: start;">
       <aside style="border: 1px solid #ddd; border-radius: 12px; background: #fff; overflow: hidden;">
@@ -54,8 +60,24 @@
         <form id="support-chat-reply-form" style="padding: 16px; border-top: 1px solid #eee;">
           <textarea id="support-chat-reply-input" rows="4" placeholder="Type your reply..." style="width: 100%; box-sizing: border-box; border: 1px solid #ddd; border-radius: 10px; padding: 12px; resize: vertical;" {% if not selected_session %}disabled{% endif %}></textarea>
           <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 12px; gap: 12px;">
-            <p id="support-chat-admin-error" style="margin: 0; color: #b42318; font-size: 12px;">Press Ctrl/Cmd + Enter to send.</p>
-            <button type="submit" {% if not selected_session %}disabled{% endif %}>Send reply</button>
+            <div style="display: flex; flex-direction: column; gap: 8px; align-items: flex-start;">
+              <p id="support-chat-admin-error" style="margin: 0; color: #b42318; font-size: 12px;">Press Ctrl/Cmd + Enter to send.</p>
+              <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                <label for="support-chat-tone" style="font-size: 12px; color: #666;">Draft tone</label>
+                <select id="support-chat-tone" {% if not selected_session or not openclaw_enabled or not openclaw_draft_enabled %}disabled{% endif %}>
+                  <option value="soft_guide">温和导购</option>
+                  <option value="direct_conversion">直接成交</option>
+                  <option value="after_sales">售后客服</option>
+                  <option value="neutral" selected>中性简洁</option>
+                </select>
+                <span id="support-chat-draft-state" style="font-size: 12px; color: #666;">Choose a tone, then generate 中文 or English draft.</span>
+              </div>
+            </div>
+            <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+              <button type="button" class="support-chat-draft-button" data-language="zh-hans" {% if not selected_session or not openclaw_enabled or not openclaw_draft_enabled %}disabled{% endif %}>中文草稿</button>
+              <button type="button" class="support-chat-draft-button" data-language="en" {% if not selected_session or not openclaw_enabled or not openclaw_draft_enabled %}disabled{% endif %}>English Draft</button>
+              <button type="submit" {% if not selected_session %}disabled{% endif %}>Send reply</button>
+            </div>
           </div>
         </form>
       </section>
@@ -70,7 +92,10 @@
       const sessionsUrl = root.dataset.sessionsUrl;
       const messagesUrl = root.dataset.messagesUrl;
       const replyUrl = root.dataset.replyUrl;
+      const draftUrl = root.dataset.draftUrl;
       const closeUrl = root.dataset.closeUrl;
+      const realtimeEnabled = root.dataset.realtimeEnabled === 'true';
+      const websocketUrl = root.dataset.websocketUrl || '';
       const sessionList = document.getElementById('support-chat-session-list');
       const messageList = document.getElementById('support-chat-message-list');
       const title = document.getElementById('support-chat-current-title');
@@ -79,12 +104,19 @@
       const replyInput = document.getElementById('support-chat-reply-input');
       const errorNode = document.getElementById('support-chat-admin-error');
       const closeButton = document.getElementById('support-chat-close');
+      const draftButtons = Array.from(document.querySelectorAll('.support-chat-draft-button'));
+      const draftToneSelect = document.getElementById('support-chat-tone');
+      const draftState = document.getElementById('support-chat-draft-state');
       const submitButton = replyForm.querySelector('button[type="submit"]');
       const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || document.cookie.split('; ').find(item => item.startsWith('csrftoken='))?.split('=')[1] || '';
+      const draftStoragePrefix = 'support-chat-admin-draft:';
 
       let selectedSessionId = {{ selected_session.id|default:'null' }};
       let lastMessageId = {{ selected_session_last_message_id|default:0 }};
       let isSending = false;
+      let socket = null;
+      let reconnectTimer = null;
+      const draftAvailable = {% if openclaw_enabled and openclaw_draft_enabled %}true{% else %}false{% endif %};
 
       function escapeHtml(value) {
         return String(value || '').replace(/[&<>\"']/g, function (char) {
@@ -92,15 +124,73 @@
         });
       }
 
+      function buildSocketUrl(path) {
+        if (!path) return null;
+        if (/^wss?:\/\//.test(path)) return path;
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        return protocol + '//' + window.location.host + path;
+      }
+
+      function currentDraftKey() {
+        return selectedSessionId ? (draftStoragePrefix + selectedSessionId) : null;
+      }
+
+      function saveDraft() {
+        const key = currentDraftKey();
+        if (!key) return;
+        try {
+          localStorage.setItem(key, replyInput.value || '');
+        } catch (error) {}
+      }
+
+      function restoreDraft() {
+        const key = currentDraftKey();
+        if (!key) return;
+        try {
+          replyInput.value = localStorage.getItem(key) || '';
+        } catch (error) {}
+      }
+
+      function clearDraft() {
+        const key = currentDraftKey();
+        if (!key) return;
+        try {
+          localStorage.removeItem(key);
+        } catch (error) {}
+      }
+
       function renderMessage(message) {
-        return '<article style="margin-bottom: 14px; padding: 14px; border-radius: 12px; background: #fff; border: 1px solid #eee;">'
+        return '<article data-message-id="' + escapeHtml(message.id || '') + '" style="margin-bottom: 14px; padding: 14px; border-radius: 12px; background: #fff; border: 1px solid #eee;">'
           + '<div style="display:flex;justify-content:space-between;gap:12px;font-size:12px;color:#666;">'
           + '<span>' + escapeHtml(message.sender_type) + '</span>'
-          + '<span>' + escapeHtml(message.created_at.replace('T', ' ').slice(0, 19)) + '</span>'
+          + '<span>' + escapeHtml((message.created_at || '').replace('T', ' ').slice(0, 19)) + '</span>'
           + '</div>'
           + '<div style="margin-top:8px;font-size:14px;">' + escapeHtml(message.text) + '</div>'
           + (message.text !== message.original_text ? '<div style="margin-top:8px;color:#666;font-size:12px;">Original: ' + escapeHtml(message.original_text) + '</div>' : '')
           + '</article>';
+      }
+
+      function appendMessage(message) {
+        if (message.id && messageList.querySelector('[data-message-id="' + String(message.id).replace(/"/g, '\\"') + '"]')) {
+          return;
+        }
+        if (lastMessageId === 0 && !messageList.querySelector('[data-message-id]')) {
+          messageList.innerHTML = '';
+        }
+        messageList.insertAdjacentHTML('beforeend', renderMessage(message));
+        lastMessageId = Math.max(lastMessageId, Number(message.id || 0));
+        messageList.scrollTop = messageList.scrollHeight;
+      }
+
+      function renderSessionList(sessions) {
+        sessionList.innerHTML = sessions.length ? sessions.map(function (session) {
+          return '<button type="button" class="support-chat-session-item' + (session.id === selectedSessionId ? ' is-active' : '') + '" data-session-id="' + session.id + '" data-visitor-name="' + escapeHtml(session.visitor_name || 'Anonymous visitor') + '" data-visitor-email="' + escapeHtml(session.visitor_email || '') + '" data-visitor-language="' + escapeHtml(session.visitor_language || '') + '" data-status="' + escapeHtml(session.status || '') + '" style="display:block;width:100%;padding:14px 16px;text-align:left;border:0;border-bottom:1px solid #f1f1f1;background:' + (session.id === selectedSessionId ? '#f7f7f7' : '#fff') + ';cursor:pointer;">'
+            + '<div style="display:flex;justify-content:space-between;gap:12px;align-items:start;"><strong>' + escapeHtml(session.visitor_name || 'Anonymous visitor') + '</strong><span style="color:' + (session.unread_for_operator ? '#b42318' : '#666') + ';font-size:12px;">' + escapeHtml(session.status) + '</span></div>'
+            + '<div style="margin-top:6px;font-size:12px;color:#666;">' + escapeHtml(session.visitor_email || session.visitor_language || '') + '</div>'
+            + '<div style="margin-top:6px;font-size:12px;color:#444;line-height:1.5;">' + escapeHtml(session.last_message_preview || '') + '</div>'
+            + '<div style="margin-top:8px;font-size:12px;color:#666;">Unread ' + escapeHtml(session.unread_for_operator) + (session.last_message_at ? ' · ' + escapeHtml(session.last_message_at.replace('T', ' ').slice(0, 16)) : '') + '</div>'
+            + '</button>';
+        }).join('') : '<div style="padding:16px;color:#666;">No conversations yet.</div>';
       }
 
       function applySessionMeta(session) {
@@ -112,6 +202,13 @@
         isSending = sending;
         submitButton.disabled = sending || !selectedSessionId;
         replyInput.disabled = sending || !selectedSessionId;
+        closeButton.disabled = !selectedSessionId;
+        if (draftToneSelect) {
+          draftToneSelect.disabled = sending || !selectedSessionId || !draftAvailable;
+        }
+        draftButtons.forEach(function (button) {
+          button.disabled = sending || !selectedSessionId || !draftAvailable;
+        });
         submitButton.textContent = sending ? 'Sending...' : 'Send reply';
       }
 
@@ -122,17 +219,65 @@
         return data;
       }
 
+      function connectRealtime() {
+        if (!realtimeEnabled || socket) return;
+        const url = buildSocketUrl(websocketUrl);
+        if (!url) return;
+        socket = new window.WebSocket(url);
+        socket.addEventListener('open', function () {
+          if (selectedSessionId) {
+            socket.send(JSON.stringify({ event: 'chat.subscribe', session_id: selectedSessionId }));
+          }
+        });
+        socket.addEventListener('message', function (event) {
+          try {
+            handleRealtime(JSON.parse(event.data));
+          } catch (error) {}
+        });
+        socket.addEventListener('close', function () {
+          socket = null;
+          if (realtimeEnabled && !reconnectTimer) {
+            reconnectTimer = window.setTimeout(function () {
+              reconnectTimer = null;
+              connectRealtime();
+            }, 2000);
+          }
+        });
+        socket.addEventListener('error', function () {
+          if (socket) socket.close();
+        });
+      }
+
+      function handleRealtime(payload) {
+        if (!payload || !payload.event) return;
+        if (payload.event === 'chat.session.list.changed') {
+          refreshSessions().catch(function () {});
+          if (payload.session && payload.session.id === selectedSessionId) {
+            applySessionMeta(payload.session);
+          }
+        } else if (payload.event === 'chat.message.created') {
+          if (payload.session && payload.session.id === selectedSessionId && payload.message) {
+            appendMessage({
+              id: payload.message.id,
+              sender_type: payload.message.sender_type,
+              text: payload.message.text_for_operator || payload.message.original_text,
+              original_text: payload.message.original_text,
+              created_at: payload.message.created_at,
+            });
+            markRead().catch(function () {});
+          }
+        } else if (payload.event === 'chat.session.updated' && payload.session && payload.session.id === selectedSessionId) {
+          applySessionMeta(payload.session);
+        } else if (payload.event === 'chat.session.closed' && payload.session && payload.session.id === selectedSessionId) {
+          applySessionMeta(payload.session);
+          setSendingState(false);
+          replyInput.disabled = true;
+        }
+      }
+
       async function refreshSessions() {
         const data = await fetchJson(sessionsUrl);
-        sessionList.innerHTML = data.sessions.length ? data.sessions.map(function (session) {
-          return '<button type="button" class="support-chat-session-item' + (session.id === selectedSessionId ? ' is-active' : '') + '" data-session-id="' + session.id + '" data-visitor-name="' + escapeHtml(session.visitor_name || 'Anonymous visitor') + '" data-visitor-email="' + escapeHtml(session.visitor_email || '') + '" data-visitor-language="' + escapeHtml(session.visitor_language || '') + '" data-status="' + escapeHtml(session.status || '') + '" style="display:block;width:100%;padding:14px 16px;text-align:left;border:0;border-bottom:1px solid #f1f1f1;background:' + (session.id === selectedSessionId ? '#f7f7f7' : '#fff') + ';cursor:pointer;">'
-            + '<div style="display:flex;justify-content:space-between;gap:12px;align-items:start;"><strong>' + escapeHtml(session.visitor_name || 'Anonymous visitor') + '</strong><span style="color:' + (session.unread_for_operator ? '#b42318' : '#666') + ';font-size:12px;">' + escapeHtml(session.status) + '</span></div>'
-            + '<div style="margin-top:6px;font-size:12px;color:#666;">' + escapeHtml(session.visitor_email || session.visitor_language || '') + '</div>'
-            + '<div style="margin-top:6px;font-size:12px;color:#444;line-height:1.5;">' + escapeHtml(session.last_message_preview || '') + '</div>'
-            + '<div style="margin-top:8px;font-size:12px;color:#666;">Unread ' + escapeHtml(session.unread_for_operator) + (session.last_message_at ? ' · ' + escapeHtml(session.last_message_at.replace('T', ' ').slice(0, 16)) : '') + '</div>'
-            + '</button>';
-        }).join('') : '<div style="padding:16px;color:#666;">No conversations yet.</div>';
-
+        renderSessionList(data.sessions);
         const selected = data.sessions.find(function (session) { return session.id === selectedSessionId; });
         if (selected) {
           applySessionMeta(selected);
@@ -140,44 +285,58 @@
           selectedSessionId = data.sessions[0].id;
           applySessionMeta(data.sessions[0]);
           lastMessageId = 0;
+          restoreDraft();
         }
       }
 
       async function refreshMessages() {
         if (!selectedSessionId) return;
         const data = await fetchJson(messagesUrl + '?session_id=' + encodeURIComponent(selectedSessionId) + '&after=' + encodeURIComponent(lastMessageId));
-        if (data.messages.length) {
-          if (lastMessageId === 0) {
-            messageList.innerHTML = '';
-          }
-          data.messages.forEach(function (message) {
-            messageList.insertAdjacentHTML('beforeend', renderMessage(message));
-            lastMessageId = Math.max(lastMessageId, Number(message.id || 0));
-          });
-          messageList.scrollTop = messageList.scrollHeight;
+        if (lastMessageId === 0) {
+          messageList.innerHTML = '';
         }
+        data.messages.forEach(function (message) {
+          appendMessage(message);
+        });
+      }
+
+      async function markRead() {
+        if (!selectedSessionId) return;
+        await fetchJson(messagesUrl + '?session_id=' + encodeURIComponent(selectedSessionId) + '&after=' + encodeURIComponent(lastMessageId));
+        if (socket && socket.readyState === window.WebSocket.OPEN) {
+          socket.send(JSON.stringify({ event: 'chat.mark_read', session_id: selectedSessionId }));
+        }
+      }
+
+      async function selectSession(sessionId, sessionMeta) {
+        selectedSessionId = Number(sessionId);
+        lastMessageId = 0;
+        messageList.innerHTML = '';
+        errorNode.textContent = 'Press Ctrl/Cmd + Enter to send.';
+        applySessionMeta(sessionMeta);
+        setSendingState(false);
+        restoreDraft();
+        if (socket && socket.readyState === window.WebSocket.OPEN) {
+          socket.send(JSON.stringify({ event: 'chat.subscribe', session_id: selectedSessionId }));
+        }
+        await refreshSessions();
+        await refreshMessages();
       }
 
       sessionList.addEventListener('click', function (event) {
         const button = event.target.closest('[data-session-id]');
         if (!button) return;
-        selectedSessionId = Number(button.dataset.sessionId);
-        lastMessageId = 0;
-        messageList.innerHTML = '';
-        errorNode.textContent = 'Press Ctrl/Cmd + Enter to send.';
-        applySessionMeta({
+        selectSession(button.dataset.sessionId, {
           visitor_name: button.dataset.visitorName,
           visitor_email: button.dataset.visitorEmail,
           visitor_language: button.dataset.visitorLanguage,
           status: button.dataset.status,
-        });
-        closeButton.disabled = false;
-        setSendingState(false);
-        refreshSessions().then(refreshMessages).catch(function (error) {
+        }).catch(function (error) {
           errorNode.textContent = error.message;
         });
       });
 
+      replyInput.addEventListener('input', saveDraft);
       replyInput.addEventListener('keydown', function (event) {
         if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
           event.preventDefault();
@@ -201,17 +360,52 @@
             },
             body: JSON.stringify({ session_id: selectedSessionId, text: text }),
           });
-          messageList.insertAdjacentHTML('beforeend', renderMessage(data.message));
-          lastMessageId = Math.max(lastMessageId, Number(data.message.id || 0));
+          appendMessage(data.message);
           replyInput.value = '';
+          clearDraft();
           replyInput.focus();
-          messageList.scrollTop = messageList.scrollHeight;
           await refreshSessions();
         } catch (error) {
           errorNode.textContent = error.message;
         } finally {
           setSendingState(false);
         }
+      });
+
+      draftButtons.forEach(function (draftButton) {
+        draftButton.addEventListener('click', async function () {
+          if (!selectedSessionId || isSending || !draftAvailable) return;
+          errorNode.textContent = '';
+          setSendingState(true);
+          const previousLabel = draftButton.textContent;
+          const language = draftButton.dataset.language;
+          const tone = draftToneSelect ? draftToneSelect.value : 'neutral';
+          draftButton.textContent = 'Generating...';
+          if (draftState) {
+            draftState.textContent = 'Generating ' + (language === 'en' ? 'English' : '中文') + ' draft · ' + tone;
+          }
+          try {
+            const data = await fetchJson(draftUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken,
+              },
+              body: JSON.stringify({ session_id: selectedSessionId, language: language, tone: tone }),
+            });
+            replyInput.value = data.draft;
+            saveDraft();
+            replyInput.focus();
+            if (draftState) {
+              draftState.textContent = 'Loaded ' + (data.language === 'en' ? 'English' : '中文') + ' draft · ' + data.tone;
+            }
+          } catch (error) {
+            errorNode.textContent = error.message;
+          } finally {
+            draftButton.textContent = previousLabel;
+            setSendingState(false);
+          }
+        });
       });
 
       closeButton.addEventListener('click', async function () {
@@ -233,12 +427,18 @@
       });
 
       setSendingState(false);
-      refreshSessions().then(refreshMessages).catch(function (error) {
+      connectRealtime();
+      refreshSessions().then(function () {
+        if (selectedSessionId && socket && socket.readyState === window.WebSocket.OPEN) {
+          socket.send(JSON.stringify({ event: 'chat.subscribe', session_id: selectedSessionId }));
+        }
+        return refreshMessages();
+      }).catch(function (error) {
         errorNode.textContent = error.message;
       });
       window.setInterval(function () {
         refreshSessions().then(refreshMessages).catch(function () {});
-      }, pollInterval);
+      }, realtimeEnabled ? Math.max(pollInterval, 30000) : pollInterval);
     })();
   </script>
 {% endblock %}

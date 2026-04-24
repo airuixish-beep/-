@@ -141,6 +141,13 @@ class Order(models.Model):
         self.payment_status = self.PaymentStatus.CANCELLED
         self.save(update_fields=["status", "payment_status", "updated_at"])
 
+    def mark_processing(self):
+        if self.payment_status != self.PaymentStatus.PAID:
+            raise ValueError("未支付订单不能标记为处理中")
+        self.fulfillment_status = self.FulfillmentStatus.PROCESSING
+        self.status = self.Status.PROCESSING
+        self.save(update_fields=["fulfillment_status", "status", "updated_at"])
+
     def sync_fulfillment_from_shipment_status(self, shipment_status):
         from shipping.models import Shipment
 
@@ -164,6 +171,15 @@ class Order(models.Model):
             if self.payment_status == self.PaymentStatus.PAID:
                 self.status = self.Status.DELIVERED
                 update_fields.append("status")
+        elif shipment_status == Shipment.Status.CANCELLED:
+            self.fulfillment_status = self.FulfillmentStatus.CANCELLED
+            update_fields.append("fulfillment_status")
+            if self.payment_status == self.PaymentStatus.PAID:
+                self.status = self.Status.CANCELLED
+                update_fields.append("status")
+        elif shipment_status == Shipment.Status.EXCEPTION:
+            self.fulfillment_status = self.FulfillmentStatus.PROCESSING
+            update_fields.append("fulfillment_status")
 
         if update_fields:
             self.save(update_fields=[*dict.fromkeys(update_fields), "updated_at"])

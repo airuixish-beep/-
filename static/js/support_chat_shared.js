@@ -11,16 +11,31 @@
     })?.split('=')[1] || '';
   }
 
+  function buildWebSocketUrl(path) {
+    if (!path) return null;
+    if (/^wss?:\/\//.test(path)) return path;
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    return protocol + '//' + window.location.host + path;
+  }
+
   async function fetchJson(url, options) {
     const response = await fetch(url, options);
-    const data = await response.json();
+    const contentType = response.headers.get('content-type') || '';
+    const data = contentType.includes('application/json') ? await response.json() : null;
     if (!response.ok) {
-      throw new Error(data.error || 'Request failed');
+      throw new Error((data && data.error) || 'Request failed');
     }
-    return data;
+    return data || {};
+  }
+
+  function callHook(hook) {
+    if (typeof hook === 'function') {
+      hook.apply(null, Array.prototype.slice.call(arguments, 1));
+    }
   }
 
   function createChatClient(root, options) {
+    const config = options || {};
     const form = root.querySelector('[data-role="form"]');
     const messagesNode = root.querySelector('[data-role="messages"]');
     const errorNode = root.querySelector('[data-role="error"]');
@@ -34,25 +49,47 @@
     const initialStatusText = root.dataset.initialStatus || 'Usually replies within a few hours.';
     const sendingStatusText = root.dataset.sendingStatus || 'Sending your message…';
     const sentWithoutEmailStatusText = root.dataset.sentWithoutEmailStatus || 'Want a follow-up? Add your email below.';
+    const composerField = form.elements.text;
+    const contactNameField = form.elements.visitor_name;
+    const contactEmailField = form.elements.visitor_email;
+    const draftStorageKey = (root.id || 'support-chat') + ':draft';
 
     let initialized = false;
     let pollInterval = 3000;
     let backgroundPollInterval = 9000;
     let pollTimer = null;
+    let reconnectTimer = null;
+    let realtimeEnabled = false;
+    let websocketUrl = null;
+    let socket = null;
+    let suppressReconnect = false;
     let lastMessageId = 0;
     let unreadCount = 0;
     let isSending = false;
     let hasSentMessage = false;
+    let pendingMessages = [];
 
     function isNearBottom() {
       return messagesNode.scrollHeight - messagesNode.scrollTop - messagesNode.clientHeight < 80;
     }
 
+    function syncUnreadCount() {
+      callHook(config.onUnreadChange, unreadCount);
+    }
+
+    function setStatus(text) {
+      if (statusNode) {
+        statusNode.textContent = text;
+      }
+    }
+
     function setSendingState(sending) {
       isSending = sending;
       submitButton.disabled = sending;
-      submitButton.textContent = sending ? (options.sendingButtonText || 'Sending...') : (options.submitButtonText || submitButton.dataset.idleLabel || submitButton.textContent);
-      statusNode.textContent = sending ? sendingStatusText : initialStatusText;
+      submitButton.textContent = sending
+        ? (config.sendingButtonText || 'Sending...')
+        : (config.submitButtonText || submitButton.dataset.idleLabel || submitButton.textContent);
+      setStatus(sending ? sendingStatusText : initialStatusText);
     }
 
     function showError(message) {
@@ -67,31 +104,111 @@
       errorNode.classList.add('hidden');
     }
 
+    function getContactPayload() {
+      return {
+        visitor_name: contactNameField ? contactNameField.value.trim() : '',
+        visitor_email: contactEmailField ? contactEmailField.value.trim() : '',
+      };
+    }
+
+    function saveDraft() {
+      try {
+        window.localStorage.setItem(draftStorageKey, composerField.value || '');
+      } catch (error) {}
+    }
+
+    function restoreDraft() {
+      try {
+        const saved = window.localStorage.getItem(draftStorageKey);
+        if (saved && !composerField.value) {
+          composerField.value = saved;
+        }
+      } catch (error) {}
+    }
+
+    function clearDraft() {
+      try {
+        window.localStorage.removeItem(draftStorageKey);
+      } catch (error) {}
+    }
+
+    function syncContactFields(session) {
+      if (session.visitor_name && contactNameField) {
+        contactNameField.value = session.visitor_name;
+      }
+      if (session.visitor_email && contactEmailField) {
+        contactEmailField.value = session.visitor_email;
+      }
+    }
+
+    function messageNodeSelector(message) {
+      if (message.id) {
+        return '[data-message-id="' + String(message.id).replace(/"/g, '\\"') + '"]';
+      }
+      if (message.client_id) {
+        return '[data-client-id="' + String(message.client_id).replace(/"/g, '\\"') + '"]';
+      }
+      return null;
+    }
+
     function renderMessage(message) {
       const mine = message.sender_type === 'visitor';
-      return '<article class="' + (mine ? 'text-right' : 'text-left') + '">'
+      const stateText = message.send_status === 'failed'
+        ? 'Failed to send.'
+        : (message.send_status === 'sending' ? 'Sending…' : '');
+      const retryButton = message.send_status === 'failed'
+        ? '<button type="button" class="mt-2 text-xs underline" data-role="retry-message" data-client-id="' + escapeHtml(message.client_id || '') + '">Retry</button>'
+        : '';
+      return '<article class="' + (mine ? 'text-right' : 'text-left') + '"' + (message.id ? ' data-message-id="' + escapeHtml(message.id) + '"' : '') + (message.client_id ? ' data-client-id="' + escapeHtml(message.client_id) + '"' : '') + '>'
         + '<div class="inline-block max-w-[85%] rounded-2xl border px-4 py-3 text-sm ' + (mine ? 'border-xuanor-gold/40 bg-xuanor-gold/10 text-xuanor-cream' : 'border-white/10 bg-white/[0.03] text-xuanor-cream') + '">'
         + '<div>' + escapeHtml(message.text) + '</div>'
         + (message.text !== message.original_text ? '<div class="mt-2 text-xs text-xuanor-muted">Original: ' + escapeHtml(message.original_text) + '</div>' : '')
+        + (stateText ? '<div class="mt-2 text-xs text-xuanor-muted">' + escapeHtml(stateText) + '</div>' : '')
+        + retryButton
         + '</div>'
         + '</article>';
     }
 
-    function appendMessages(messages) {
+    function normalizeRealtimeMessage(message) {
+      return {
+        id: message.id,
+        sender_type: message.sender_type,
+        text: message.text_for_visitor || message.original_text,
+        original_text: message.original_text,
+        original_language: message.original_language,
+        translation_status: message.translation_status,
+        created_at: message.created_at,
+        send_status: 'sent',
+      };
+    }
+
+    function upsertMessage(message) {
+      const selector = messageNodeSelector(message);
       const shouldStick = isNearBottom() || !messagesNode.children.length;
-      messages.forEach(function (message) {
-        messagesNode.insertAdjacentHTML('beforeend', renderMessage(message));
-        lastMessageId = Math.max(lastMessageId, Number(message.id || 0));
-        if (message.sender_type === 'operator') {
-          unreadCount += 1;
+      if (selector) {
+        const existingNode = messagesNode.querySelector(selector);
+        if (existingNode) {
+          existingNode.outerHTML = renderMessage(message);
+        } else {
+          messagesNode.insertAdjacentHTML('beforeend', renderMessage(message));
         }
-      });
-      if (typeof options.onUnreadChange === 'function') {
-        options.onUnreadChange(unreadCount);
+      } else {
+        messagesNode.insertAdjacentHTML('beforeend', renderMessage(message));
       }
+      lastMessageId = Math.max(lastMessageId, Number(message.id || 0));
+      if (message.sender_type === 'operator' && message.send_status !== 'sending' && !selector) {
+        unreadCount += 1;
+      }
+      syncUnreadCount();
       if (shouldStick) {
         messagesNode.scrollTop = messagesNode.scrollHeight;
       }
+    }
+
+    function appendMessages(messages) {
+      messages.forEach(function (message) {
+        upsertMessage(message);
+      });
     }
 
     function renderInitialPlaceholder() {
@@ -99,14 +216,46 @@
       messagesNode.innerHTML = placeholder ? placeholder.outerHTML : '';
       lastMessageId = 0;
       unreadCount = 0;
+      pendingMessages = [];
+      syncUnreadCount();
+    }
+
+    function getPendingMessage(clientId) {
+      return pendingMessages.find(function (item) {
+        return item.client_id === clientId;
+      });
+    }
+
+    function addPendingMessage(text) {
+      const pendingMessage = {
+        client_id: 'local-' + Date.now() + '-' + Math.random().toString(16).slice(2),
+        sender_type: 'visitor',
+        text: text,
+        original_text: text,
+        send_status: 'sending',
+      };
+      pendingMessages.push(pendingMessage);
+      upsertMessage(pendingMessage);
+      return pendingMessage;
+    }
+
+    function markPendingFailed(clientId) {
+      const pending = getPendingMessage(clientId);
+      if (!pending) return;
+      pending.send_status = 'failed';
+      upsertMessage(pending);
+    }
+
+    function clearPending(clientId) {
+      pendingMessages = pendingMessages.filter(function (item) {
+        return item.client_id !== clientId;
+      });
     }
 
     async function ensureSession() {
-      const payload = {
-        visitor_name: form.elements.visitor_name?.value.trim() || '',
-        visitor_email: form.elements.visitor_email?.value.trim() || '',
+      const payload = Object.assign(getContactPayload(), {
         language: navigator.language || defaultLanguage,
-      };
+      });
       const data = await fetchJson(sessionUrl, {
         method: 'POST',
         headers: {
@@ -118,29 +267,90 @@
 
       pollInterval = Number(data.poll_interval_ms || pollInterval);
       backgroundPollInterval = Number(data.background_poll_interval_ms || backgroundPollInterval);
+      realtimeEnabled = Boolean(data.realtime_enabled);
+      websocketUrl = buildWebSocketUrl(data.visitor_websocket_url || root.dataset.websocketUrl || '');
       hasSentMessage = Boolean((data.messages || []).length);
       renderInitialPlaceholder();
-
-      if (data.session?.visitor_name && form.elements.visitor_name) {
-        form.elements.visitor_name.value = data.session.visitor_name;
-      }
-      if (data.session?.visitor_email && form.elements.visitor_email) {
-        form.elements.visitor_email.value = data.session.visitor_email;
-      }
-      if (typeof options.onSession === 'function') {
-        options.onSession(data.session || {});
-      }
+      syncContactFields(data.session || {});
+      callHook(config.onSession, data.session || {});
       appendMessages(data.messages || []);
+      restoreDraft();
       return data;
+    }
+
+    function closeSocket() {
+      suppressReconnect = true;
+      if (reconnectTimer) {
+        window.clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+      }
+      if (socket) {
+        socket.close();
+        socket = null;
+      }
+    }
+
+    function scheduleReconnect() {
+      if (!realtimeEnabled || suppressReconnect || reconnectTimer) return;
+      reconnectTimer = window.setTimeout(function () {
+        reconnectTimer = null;
+        connectRealtime();
+      }, 2000);
+    }
+
+    function handleRealtimePayload(payload) {
+      if (!payload || !payload.event) return;
+      if (payload.event === 'chat.message.created' && payload.message) {
+        appendMessages([normalizeRealtimeMessage(payload.message)]);
+        if (!document.hidden) {
+          markRead().catch(function () {});
+        }
+      } else if (payload.event === 'chat.session.closed') {
+        submitButton.disabled = true;
+        setStatus('This conversation has ended. Leave your email and we will follow up.');
+      } else if (payload.event === 'chat.session.updated') {
+        callHook(config.onSession, payload.session || {});
+      }
+    }
+
+    function connectRealtime() {
+      if (!realtimeEnabled || !websocketUrl || socket) return;
+      suppressReconnect = false;
+      try {
+        socket = new window.WebSocket(websocketUrl);
+      } catch (error) {
+        socket = null;
+        scheduleReconnect();
+        return;
+      }
+      socket.addEventListener('open', function () {
+        restartPolling();
+      });
+      socket.addEventListener('message', function (event) {
+        try {
+          handleRealtimePayload(JSON.parse(event.data));
+        } catch (error) {}
+      });
+      socket.addEventListener('close', function () {
+        socket = null;
+        scheduleReconnect();
+      });
+      socket.addEventListener('error', function () {
+        if (socket) {
+          socket.close();
+        }
+      });
     }
 
     function restartPolling() {
       if (pollTimer) {
         window.clearInterval(pollTimer);
       }
-      const interval = typeof options.getPollInterval === 'function'
-        ? options.getPollInterval({ pollInterval: pollInterval, backgroundPollInterval: backgroundPollInterval })
-        : (!document.hidden ? pollInterval : backgroundPollInterval);
+      const interval = (realtimeEnabled && socket && socket.readyState === window.WebSocket.OPEN)
+        ? Math.max(backgroundPollInterval, 30000)
+        : (typeof config.getPollInterval === 'function'
+          ? config.getPollInterval({ pollInterval: pollInterval, backgroundPollInterval: backgroundPollInterval })
+          : (!document.hidden ? pollInterval : backgroundPollInterval));
       pollTimer = window.setInterval(function () {
         refreshMessages().catch(function () {});
       }, interval);
@@ -150,17 +360,12 @@
       if (!initialized) return;
       const data = await fetchJson(messagesUrl + '?after=' + encodeURIComponent(lastMessageId));
       if (data.messages?.length) {
-        appendMessages(data.messages);
+        appendMessages(data.messages.map(function (message) {
+          return Object.assign({}, message, { send_status: 'sent' });
+        }));
       }
-      if (typeof options.onRefresh === 'function') {
-        options.onRefresh(data);
-      }
-      if (data.session?.visitor_name && form.elements.visitor_name) {
-        form.elements.visitor_name.value = data.session.visitor_name;
-      }
-      if (data.session?.visitor_email && form.elements.visitor_email) {
-        form.elements.visitor_email.value = data.session.visitor_email;
-      }
+      callHook(config.onRefresh, data);
+      syncContactFields(data.session || {});
     }
 
     async function markRead() {
@@ -172,8 +377,9 @@
           },
         });
         unreadCount = 0;
-        if (typeof options.onUnreadChange === 'function') {
-          options.onUnreadChange(unreadCount);
+        syncUnreadCount();
+        if (socket && socket.readyState === window.WebSocket.OPEN) {
+          socket.send(JSON.stringify({ event: 'chat.mark_read' }));
         }
       } catch (error) {
         showError(error.message);
@@ -185,17 +391,20 @@
       await ensureSession();
       initialized = true;
       restartPolling();
+      connectRealtime();
     }
 
-    async function sendMessage() {
+    async function sendMessage(existingClientId) {
       if (isSending) return;
       clearError();
-      const text = form.elements.text.value.trim();
+      const retryPending = existingClientId ? getPendingMessage(existingClientId) : null;
+      const text = retryPending ? retryPending.text : composerField.value.trim();
       if (!text) return;
 
       let nextStatusText = initialStatusText;
       await init();
       setSendingState(true);
+      const pendingMessage = retryPending || addPendingMessage(text);
       try {
         const data = await fetchJson(sendUrl, {
           method: 'POST',
@@ -203,34 +412,38 @@
             'Content-Type': 'application/json',
             'X-CSRFToken': getCsrfToken(),
           },
-          body: JSON.stringify({ text: text }),
+          body: JSON.stringify(Object.assign(getContactPayload(), {
+            text: text,
+            language: navigator.language || defaultLanguage,
+          })),
         });
         hasSentMessage = true;
-        appendMessages([data.message]);
-        form.elements.text.value = '';
-        if (!form.elements.visitor_email?.value.trim()) {
+        clearPending(pendingMessage.client_id);
+        upsertMessage(Object.assign({}, data.message, { client_id: pendingMessage.client_id, send_status: 'sent' }));
+        syncContactFields(data.session || {});
+        composerField.value = '';
+        clearDraft();
+        if (!(contactEmailField && contactEmailField.value.trim())) {
           nextStatusText = sentWithoutEmailStatusText;
         }
-        if (typeof options.onSend === 'function') {
-          options.onSend(data.message);
-        }
+        callHook(config.onSend, data.message, data.session || {});
       } catch (error) {
+        markPendingFailed(pendingMessage.client_id);
         showError(error.message);
         throw error;
       } finally {
         setSendingState(false);
-        statusNode.textContent = nextStatusText;
+        setStatus(nextStatusText);
       }
     }
 
     function bindComposer() {
-      const textField = form.elements.text;
-      const idleLabel = submitButton.textContent;
-      submitButton.dataset.idleLabel = idleLabel;
+      submitButton.dataset.idleLabel = submitButton.textContent;
+      composerField.addEventListener('input', saveDraft);
 
-      textField.addEventListener('keydown', function (event) {
-        const shouldSubmit = typeof options.shouldSubmitOnKeydown === 'function'
-          ? options.shouldSubmitOnKeydown(event)
+      composerField.addEventListener('keydown', function (event) {
+        const shouldSubmit = typeof config.shouldSubmitOnKeydown === 'function'
+          ? config.shouldSubmitOnKeydown(event)
           : (event.key === 'Enter' && !event.shiftKey);
         if (!shouldSubmit) return;
         event.preventDefault();
@@ -241,14 +454,16 @@
         event.preventDefault();
         try {
           await sendMessage();
-          if (typeof options.afterSubmit === 'function') {
-            options.afterSubmit();
-          }
+          callHook(config.afterSubmit);
         } catch (error) {
-          if (typeof options.onSendError === 'function') {
-            options.onSendError(error);
-          }
+          callHook(config.onSendError, error);
         }
+      });
+
+      messagesNode.addEventListener('click', function (event) {
+        const retryButton = event.target.closest('[data-role="retry-message"]');
+        if (!retryButton) return;
+        sendMessage(retryButton.dataset.clientId).catch(function () {});
       });
     }
 
@@ -260,6 +475,8 @@
       refreshMessages: refreshMessages,
       markRead: markRead,
       restartPolling: restartPolling,
+      connectRealtime: connectRealtime,
+      closeRealtime: closeSocket,
       clearError: clearError,
       showError: showError,
       getHasSentMessage: function () {
@@ -279,9 +496,7 @@
       },
       setUnreadCount: function (count) {
         unreadCount = count;
-        if (typeof options.onUnreadChange === 'function') {
-          options.onUnreadChange(unreadCount);
-        }
+        syncUnreadCount();
       },
     };
   }

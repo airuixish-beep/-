@@ -2,6 +2,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
+from django.views.generic import RedirectView
 
 from support_chat import views as support_chat_views
 
@@ -11,9 +12,14 @@ urlpatterns = [
     path("admin/support-chat/sessions/", admin.site.admin_view(support_chat_views.operator_sessions_view), name="support_chat_sessions"),
     path("admin/support-chat/messages/", admin.site.admin_view(support_chat_views.operator_messages_view), name="support_chat_messages"),
     path("admin/support-chat/reply/", admin.site.admin_view(support_chat_views.operator_reply_view), name="support_chat_reply"),
+    path("admin/support-chat/draft/", admin.site.admin_view(support_chat_views.operator_draft_view), name="support_chat_draft"),
     path("admin/support-chat/close/", admin.site.admin_view(support_chat_views.operator_close_view), name="support_chat_close"),
+    path("admin/support_chat/", admin.site.admin_view(RedirectView.as_view(pattern_name="support_chat_console", permanent=False))),
+    path("admin/support_chat/chatsession/", admin.site.admin_view(RedirectView.as_view(pattern_name="support_chat_console", permanent=False))),
+    path("admin/support_chat/chatmessage/", admin.site.admin_view(RedirectView.as_view(pattern_name="support_chat_console", permanent=False))),
     path("admin/", admin.site.urls),
     path("support-chat/", include(("support_chat.urls", "support_chat"), namespace="support_chat_public")),
+    path("api/lobster/customer-service/", include(("support_chat.api_urls", "support_chat_api"), namespace="support_chat_api")),
     path("", include("pages.urls")),
     path("products/", include("products.urls")),
     path("orders/", include("orders.urls")),
