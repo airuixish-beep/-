@@ -39,12 +39,15 @@
           </p>
         </div>
       </div>
-      {% if order.can_retry_payment %}
-        <form method="post" action="{% url 'orders:retry_payment' order.public_token %}" class="mt-8">
-          {% csrf_token %}
-          <button type="submit" class="rounded-full border border-xuanor-gold bg-xuanor-gold px-6 py-3 text-sm text-black hover:opacity-90">重新支付</button>
-        </form>
-      {% endif %}
+      <div class="mt-8 flex flex-wrap gap-3">
+        {% if order.can_retry_payment %}
+          <form method="post" action="{% url 'orders:retry_payment' order.public_token %}">
+            {% csrf_token %}
+            <button type="submit" class="rounded-full border border-xuanor-gold bg-xuanor-gold px-6 py-3 text-sm text-black hover:opacity-90">重新支付</button>
+          </form>
+        {% endif %}
+        <a href="{% url 'pages:chat' %}?order_no={{ order.order_number }}&email={{ order.customer_email|urlencode }}&name={{ order.customer_name|urlencode }}" class="rounded-full border border-white/15 px-6 py-3 text-sm text-xuanor-cream hover:border-xuanor-gold hover:text-xuanor-gold">联系客服</a>
+      </div>
     </article>
 
     <div class="mt-6 grid gap-6 lg:grid-cols-2">

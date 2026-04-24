@@ -1,18 +1,29 @@
 <article class="group rounded-[1.5rem] border border-white/10 bg-white/[0.02] p-4 transition hover:-translate-y-1 hover:border-xuanor-gold/40">
   <div class="mb-4 aspect-[4/5] overflow-hidden rounded-[1.25rem] border border-white/10 bg-[#111111]">
-    {% if product.hero_image %}
-      <img src="{{ product.hero_image.url }}" alt="{{ product.name }}" class="h-full w-full object-cover">
+    {% if product.primary_image %}
+      <img src="{{ product.primary_image.url }}" alt="{{ product.name }}" class="h-full w-full object-cover transition duration-500 group-hover:scale-[1.02]">
     {% else %}
       <div class="flex h-full items-center justify-center">
         <span class="text-xs uppercase tracking-[0.35em] text-stone-500">Product Image</span>
       </div>
     {% endif %}
   </div>
-  <p class="text-xs uppercase tracking-[0.25em] text-xuanor-gold">{% if product.subtitle %}{{ product.subtitle }}{% else %}XUANOR Product{% endif %}</p>
+  <div class="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.28em] text-xuanor-gold">
+    {% if product.category %}
+      <span>{{ product.category.name }}</span>
+    {% endif %}
+    {% if product.display_sku %}
+      <span class="text-xuanor-muted">{{ product.display_sku }}</span>
+    {% endif %}
+  </div>
+  <p class="mt-3 text-xs uppercase tracking-[0.25em] text-xuanor-gold">{% if product.subtitle %}{{ product.subtitle }}{% else %}XUANOR Product{% endif %}</p>
   <h3 class="mt-3 text-xl text-xuanor-cream">{{ product.name }}</h3>
-  {% if product.price %}
-    <p class="mt-3 text-lg text-xuanor-cream">{{ product.currency }} {{ product.price }}</p>
+  {% if product.display_price %}
+    <p class="mt-3 text-lg text-xuanor-cream">
+      {{ product.currency }} {{ product.display_price }}{% if product.has_variant_price_range %} 起{% endif %}
+    </p>
   {% endif %}
+  <p class="mt-2 text-xs uppercase tracking-[0.28em] text-xuanor-muted">{{ product.stock_status_label }}</p>
   <p class="mt-3 text-sm leading-6 text-xuanor-muted">{{ product.short_description }}</p>
   <div class="mt-5 flex flex-wrap gap-4 text-sm">
     <a href="{{ product.get_absolute_url }}" class="text-xuanor-gold hover:opacity-80">查看详情</a>

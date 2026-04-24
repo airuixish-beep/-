@@ -1,0 +1,191 @@
+openapi: 3.0.3
+info:
+  title: Customer Service API
+  version: 1.0.0
+servers:
+  - url: /api/lobster/customer-service
+paths:
+  /sessions:
+    post:
+      summary: Create or resume a customer service session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                public_token:
+                  type: string
+                visitor_name:
+                  type: string
+                visitor_email:
+                  type: string
+                language:
+                  type: string
+      responses:
+        '200':
+          description: Session created or resumed
+  /sessions/{public_token}:
+    get:
+      summary: Get session detail
+      parameters:
+        - in: path
+          name: public_token
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Session detail
+        '404':
+          description: Session not found
+  /sessions/{public_token}/messages:
+    get:
+      summary: Get session messages
+      parameters:
+        - in: path
+          name: public_token
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: after
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+      responses:
+        '200':
+          description: Message list
+        '400':
+          description: Invalid query parameter
+    post:
+      summary: Not supported on this path
+      responses:
+        '405':
+          description: Use /messages/send
+  /sessions/{public_token}/messages/send:
+    post:
+      summary: Send visitor message
+      parameters:
+        - in: path
+          name: public_token
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - text
+              properties:
+                text:
+                  type: string
+      responses:
+        '200':
+          description: Message created
+        '409':
+          description: Session is closed
+  /sessions/{public_token}/read:
+    post:
+      summary: Mark session as read by visitor
+      parameters:
+        - in: path
+          name: public_token
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Read state updated
+  /admin/sessions:
+    get:
+      summary: List customer service sessions
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+        - in: query
+          name: visitor_email
+          schema:
+            type: string
+        - in: query
+          name: visitor_name
+          schema:
+            type: string
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+      responses:
+        '200':
+          description: Session list
+        '403':
+          description: Staff permission required
+  /admin/sessions/{session_id}/messages:
+    get:
+      summary: Get admin view of session messages
+      parameters:
+        - in: path
+          name: session_id
+          required: true
+          schema:
+            type: integer
+        - in: query
+          name: after
+          schema:
+            type: integer
+            minimum: 0
+      responses:
+        '200':
+          description: Message list
+        '403':
+          description: Staff permission required
+  /admin/sessions/{session_id}/messages/send:
+    post:
+      summary: Send operator reply
+      parameters:
+        - in: path
+          name: session_id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - text
+              properties:
+                text:
+                  type: string
+      responses:
+        '200':
+          description: Message created
+        '403':
+          description: Staff permission required
+        '409':
+          description: Session is closed
+  /admin/sessions/{session_id}/close:
+    post:
+      summary: Close a session
+      parameters:
+        - in: path
+          name: session_id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Session closed
+        '403':
+          description: Staff permission required

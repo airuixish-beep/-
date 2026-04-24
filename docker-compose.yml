@@ -4,7 +4,7 @@ services:
     container_name: xuanor_site_db
     restart: unless-stopped
     env_file:
-      - .env
+      - ${ENV_FILE:-.env}
     environment:
       MYSQL_DATABASE: ${DB_NAME}
       MYSQL_USER: ${DB_USER}
@@ -38,12 +38,12 @@ services:
       context: .
     container_name: xuanor_site_web
     env_file:
-      - .env
+      - ${ENV_FILE:-.env}
     depends_on:
       db:
         condition: service_healthy
-    ports:
-      - "${WEB_BIND:-127.0.0.1}:${WEB_PORT:-8000}:8000"
+    expose:
+      - "8000"
     volumes:
       - media_data:/app/media
       - static_data:/app/staticfiles

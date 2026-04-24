@@ -8,14 +8,26 @@ MODE="${1:-deploy}"
 COMPOSE_ARGS=(-f docker-compose.yml)
 COMPOSE_PROFILES=()
 PROXY_SERVICE=proxy
+ENV_FILE="${ENV_FILE:-}"
 
 check_docker() {
   command -v docker >/dev/null 2>&1 || { echo "Docker 未安装，请先安装 Docker Desktop 或 Docker Engine"; exit 1; }
   docker compose version >/dev/null 2>&1 || { echo "Docker Compose 不可用，请确认 docker compose 可执行"; exit 1; }
 }
 
+ensure_env_file_path() {
+  if [ -z "$ENV_FILE" ]; then
+    if [ "${DEPLOY_ENV:-prod}" = "local" ]; then
+      ENV_FILE="$PROJECT_DIR/.env.local"
+    else
+      ENV_FILE="$PROJECT_DIR/.env"
+    fi
+  fi
+}
+
 compose_cmd() {
-  docker compose "${COMPOSE_ARGS[@]}" "$@"
+  export ENV_FILE
+  docker compose --env-file "$ENV_FILE" "${COMPOSE_ARGS[@]}" "$@"
 }
 
 is_true() {
@@ -30,16 +42,22 @@ is_true() {
 }
 
 ensure_env() {
-  if [ ! -f "$PROJECT_DIR/.env" ]; then
-    cp "$PROJECT_DIR/.env.example" "$PROJECT_DIR/.env"
-    echo "已从 .env.example 生成 .env，请先填入真实生产配置。"
+  if [ ! -f "$ENV_FILE" ]; then
+    local example_file="$PROJECT_DIR/.env.example"
+    if [ "${DEPLOY_ENV:-prod}" = "prod" ] && [ -f "$PROJECT_DIR/.env.production.example" ]; then
+      example_file="$PROJECT_DIR/.env.production.example"
+    elif [ "${DEPLOY_ENV:-prod}" = "local" ] && [ -f "$PROJECT_DIR/.env.local.example" ]; then
+      example_file="$PROJECT_DIR/.env.local.example"
+    fi
+    cp "$example_file" "$ENV_FILE"
+    echo "已从 ${example_file##*/} 生成 ${ENV_FILE##*/}，请先填入真实部署配置。"
     exit 1
   fi
 }
 
 load_env() {
   set -a
-  . "$PROJECT_DIR/.env"
+  . "$ENV_FILE"
   set +a
 }
 
@@ -47,6 +65,16 @@ configure_profiles() {
   COMPOSE_ARGS=(-f docker-compose.yml)
   PROXY_SERVICE=proxy
   COMPOSE_PROFILES=()
+
+  if [ "${DEPLOY_ENV:-prod}" = "local" ]; then
+    export COMPOSE_PROJECT_NAME="xuanor_local"
+  else
+    unset COMPOSE_PROJECT_NAME || true
+  fi
+
+  if [ "${DEPLOY_ENV:-prod}" = "local" ] && [ -f "$PROJECT_DIR/docker-compose.local.yml" ]; then
+    COMPOSE_ARGS+=( -f docker-compose.local.yml )
+  fi
 
   if [ "${DEPLOY_ENV:-prod}" = "prod" ]; then
     if [ -f "$PROJECT_DIR/docker-compose.prod.yml" ]; then
@@ -97,6 +125,13 @@ validate_env() {
   fi
 }
 
+print_local_hints() {
+  echo "本地 Docker 部署完成。"
+  echo "首页:  ${SITE_URL}/"
+  echo "后台:  ${SITE_URL}/admin/"
+  echo "如需演示数据，可执行: ENV_FILE=${ENV_FILE} docker compose ${COMPOSE_ARGS[*]} run --rm web python manage.py seed_product_demo"
+}
+
 run_release_steps() {
   local release_services=(db)
   if is_true "${CHAT_REALTIME_ENABLED:-false}"; then
@@ -115,6 +150,11 @@ run_health_checks() {
   fi
 }
 
+run_local_bootstrap() {
+  compose_cmd run --build --rm web python manage.py seed_product_demo
+  compose_cmd run --build --rm web python manage.py ensure_local_admin --username admin --email admin@example.com --password admin123456
+}
+
 start_core_services() {
   local services=(web)
   if is_true "${CHAT_REALTIME_ENABLED:-false}"; then
@@ -126,6 +166,7 @@ start_core_services() {
 case "$MODE" in
   deploy)
     check_docker
+    ensure_env_file_path
     ensure_env
     load_env
     configure_profiles
@@ -138,12 +179,49 @@ case "$MODE" in
       compose_cmd up -d "$PROXY_SERVICE"
     fi
     compose_cmd ps
-    echo "部署完成。"
-    echo "首页:  ${SITE_URL}/"
-    echo "后台:  ${SITE_URL}/admin/"
+    if [ "${DEPLOY_ENV:-prod}" = "local" ]; then
+      print_local_hints
+    else
+      echo "部署完成。"
+      echo "首页:  ${SITE_URL}/"
+      echo "后台:  ${SITE_URL}/admin/"
+    fi
+    ;;
+  deploy-local)
+    export DEPLOY_ENV=local
+    ENV_FILE="$PROJECT_DIR/.env.local"
+    check_docker
+    ensure_env_file_path
+    ensure_env
+    load_env
+    configure_profiles
+    validate_env
+    run_release_steps
+    run_health_checks
+    start_core_services
+    compose_cmd ps
+    print_local_hints
+    ;;
+  bootstrap-local)
+    export DEPLOY_ENV=local
+    ENV_FILE="$PROJECT_DIR/.env.local"
+    check_docker
+    ensure_env_file_path
+    ensure_env
+    load_env
+    configure_profiles
+    validate_env
+    run_release_steps
+    run_health_checks
+    run_local_bootstrap
+    start_core_services
+    compose_cmd ps
+    print_local_hints
+    echo "本地管理员: admin / admin123456"
     ;;
   migrate)
     check_docker
+    ensure_env_file_path
     ensure_env
     load_env
     configure_profiles
@@ -151,6 +229,7 @@ case "$MODE" in
     ;;
   check)
     check_docker
+    ensure_env_file_path
     ensure_env
     load_env
     configure_profiles
@@ -160,6 +239,7 @@ case "$MODE" in
     ;;
   exec)
     check_docker
+    ensure_env_file_path
     ensure_env
     load_env
     configure_profiles
@@ -169,6 +249,7 @@ case "$MODE" in
     ;;
   status)
     check_docker
+    ensure_env_file_path
     ensure_env
     load_env
     configure_profiles
@@ -176,6 +257,7 @@ case "$MODE" in
     ;;
   logs)
     check_docker
+    ensure_env_file_path
     ensure_env
     load_env
     configure_profiles
@@ -183,6 +265,7 @@ case "$MODE" in
     ;;
   restart)
     check_docker
+    ensure_env_file_path
     ensure_env
     load_env
     configure_profiles
@@ -191,6 +274,7 @@ case "$MODE" in
     ;;
   stop)
     check_docker
+    ensure_env_file_path
     ensure_env
     load_env
     configure_profiles
@@ -198,13 +282,14 @@ case "$MODE" in
     ;;
   destroy)
     check_docker
+    ensure_env_file_path
     ensure_env
     load_env
     configure_profiles
     compose_cmd down -v --remove-orphans
     ;;
   *)
-    echo "用法: bash deploy/auto-deploy.sh [deploy|migrate|check|exec <command>|status|logs|restart|stop|destroy]"
+    echo "用法: bash deploy/auto-deploy.sh [deploy|deploy-local|bootstrap-local|migrate|check|exec <command>|status|logs|restart|stop|destroy]"
     exit 1
     ;;
 esac

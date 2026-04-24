@@ -1,0 +1,15 @@
+[Unit]
+Description=XUANOR Daphne ASGI server
+After=network.target mysql.service
+
+[Service]
+Type=simple
+User=YOUR_USER
+WorkingDirectory=/Users/wangguoyue/Desktop/xuanor_site
+EnvironmentFile=/Users/wangguoyue/Desktop/xuanor_site/.env.local
+ExecStart=/Users/wangguoyue/Desktop/xuanor_site/.venv/bin/daphne -b 127.0.0.1 -p 8000 config.asgi:application
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

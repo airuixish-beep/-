@@ -5,26 +5,82 @@
 
 {% block content %}
 <section class="border-b border-white/10">
-  <div class="mx-auto grid max-w-7xl gap-12 px-6 py-20 lg:grid-cols-2 lg:px-10">
+  <div class="mx-auto grid max-w-7xl gap-12 px-6 py-20 lg:grid-cols-[1.05fr_0.95fr] lg:px-10">
     <div>
       <div class="aspect-[4/5] overflow-hidden rounded-[2rem] border border-white/10 bg-[#111111]">
-        {% if product.hero_image %}
-          <img src="{{ product.hero_image.url }}" alt="{{ product.name }}" class="h-full w-full object-cover">
+        {% if product.primary_image %}
+          <img src="{{ product.primary_image.url }}" alt="{{ product.name }}" class="h-full w-full object-cover">
         {% else %}
           <div class="flex h-full items-center justify-center">
             <span class="text-xs uppercase tracking-[0.35em] text-stone-500">Product Image</span>
           </div>
         {% endif %}
       </div>
+
+      {% if product.ordered_images %}
+        <div class="mt-4 grid grid-cols-4 gap-3 sm:grid-cols-5">
+          {% for image in product.ordered_images %}
+            <div class="aspect-square overflow-hidden rounded-[1rem] border border-white/10 bg-[#111111]">
+              <img src="{{ image.image.url }}" alt="{{ image.alt_text|default:product.name }}" class="h-full w-full object-cover">
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
     </div>
 
     <div class="max-w-xl">
-      <p class="text-xs uppercase tracking-[0.35em] text-xuanor-gold">{% if product.subtitle %}{{ product.subtitle }}{% else %}XUANOR Product{% endif %}</p>
+      <div class="flex flex-wrap items-center gap-3 text-xs uppercase tracking-[0.35em]">
+        {% if product.category %}
+          <span class="text-xuanor-gold">{{ product.category.name }}</span>
+        {% endif %}
+        {% if product.display_sku %}
+          <span class="text-xuanor-muted">{{ product.display_sku }}</span>
+        {% endif %}
+      </div>
+      <p class="mt-4 text-xs uppercase tracking-[0.35em] text-xuanor-gold">{% if product.subtitle %}{{ product.subtitle }}{% else %}XUANOR Product{% endif %}</p>
       <h1 class="mt-4 text-4xl leading-tight text-xuanor-cream md:text-5xl">{{ product.name }}</h1>
-      {% if product.price %}
-        <p class="mt-6 text-2xl text-xuanor-cream">{{ product.currency }} {{ product.price }}</p>
+      {% if product.display_price %}
+        <p class="mt-6 text-2xl text-xuanor-cream">{{ product.currency }} {{ product.display_price }}{% if product.has_variant_price_range %} 起{% endif %}</p>
       {% endif %}
-      <p class="mt-4 text-base leading-8 text-xuanor-muted">{{ product.description|linebreaksbr }}</p>
+      <div class="mt-4 flex flex-wrap gap-3 text-xs uppercase tracking-[0.28em]">
+        <span class="rounded-full border border-white/10 px-3 py-2 text-xuanor-muted">{{ product.stock_status_label }}</span>
+        {% if product.active_variants %}
+          <span class="rounded-full border border-white/10 px-3 py-2 text-xuanor-muted">{{ product.active_variants|length }} 个 SKU</span>
+        {% endif %}
+      </div>
+      <p class="mt-6 text-base leading-8 text-xuanor-muted">{{ product.description|linebreaksbr }}</p>
+
+      {% if product.active_variants %}
+        <div class="mt-10 rounded-[1.5rem] border border-white/10 bg-white/[0.02] p-6">
+          <div class="flex items-end justify-between gap-4">
+            <div>
+              <p class="text-xs uppercase tracking-[0.35em] text-xuanor-gold">Variants</p>
+              <h2 class="mt-2 text-xl text-xuanor-cream">规格与 SKU</h2>
+            </div>
+            <p class="text-xs uppercase tracking-[0.28em] text-xuanor-muted">当前为展示模式</p>
+          </div>
+          <div class="mt-6 space-y-4">
+            {% for variant in product.active_variants %}
+              <div class="rounded-[1.25rem] border border-white/10 p-4">
+                <div class="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <p class="text-sm text-xuanor-cream">{{ variant.option_summary }}</p>
+                    <p class="mt-2 text-[11px] uppercase tracking-[0.28em] text-xuanor-muted">{{ variant.sku }}</p>
+                  </div>
+                  <div class="text-right">
+                    {% if variant.price %}
+                      <p class="text-sm text-xuanor-cream">{{ product.currency }} {{ variant.price }}</p>
+                    {% endif %}
+                    <p class="mt-2 text-[11px] uppercase tracking-[0.28em] {% if variant.in_stock %}text-xuanor-gold{% else %}text-stone-500{% endif %}">
+                      {% if variant.in_stock %}库存 {{ variant.stock_quantity }}{% else %}暂时缺货{% endif %}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      {% endif %}
 
       {% if product.features.all %}
         <div class="mt-10 space-y-4">
@@ -36,6 +92,23 @@
               {% endif %}
             </div>
           {% endfor %}
+        </div>
+      {% endif %}
+
+      {% if product.specification or product.usage_notes %}
+        <div class="mt-10 grid gap-4 md:grid-cols-2">
+          {% if product.specification %}
+            <div class="rounded-[1.25rem] border border-white/10 p-5">
+              <h2 class="text-lg text-xuanor-cream">参数说明</h2>
+              <p class="mt-3 text-sm leading-7 text-xuanor-muted">{{ product.specification|linebreaksbr }}</p>
+            </div>
+          {% endif %}
+          {% if product.usage_notes %}
+            <div class="rounded-[1.25rem] border border-white/10 p-5">
+              <h2 class="text-lg text-xuanor-cream">使用说明</h2>
+              <p class="mt-3 text-sm leading-7 text-xuanor-muted">{{ product.usage_notes|linebreaksbr }}</p>
+            </div>
+          {% endif %}
         </div>
       {% endif %}
 

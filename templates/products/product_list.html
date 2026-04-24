@@ -29,7 +29,14 @@
       </div>
     </div>
 
-    <div class="mt-16 grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
+    <div class="mt-16">
+      <div class="mb-8 flex items-end justify-between gap-6">
+        <div>
+          <p class="text-xs uppercase tracking-[0.35em] text-xuanor-gold">Catalogue</p>
+          <h2 class="mt-3 text-3xl text-xuanor-cream md:text-4xl">All products</h2>
+        </div>
+      </div>
+      <div class="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
       {% for product in products %}
         {% include 'includes/product_card.html' with product=product %}
       {% empty %}
@@ -37,6 +44,7 @@
           当前还没有可展示的产品，请先在后台录入产品。
         </div>
       {% endfor %}
+      </div>
     </div>
   </div>
 </section>

@@ -1,0 +1,124 @@
+{
+  "info": {
+    "name": "Customer Service API",
+    "description": "Postman collection for XUANOR lobster customer service API.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://127.0.0.1:8001" },
+    { "key": "publicToken", "value": "" },
+    { "key": "sessionId", "value": "" },
+    { "key": "csrftoken", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Public API",
+      "item": [
+        {
+          "name": "Create or Resume Session",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"public_token\": \"{{publicToken}}\",\n  \"visitor_name\": \"Amy\",\n  \"visitor_email\": \"amy@example.com\",\n  \"language\": \"en-US\"\n}"
+            },
+            "url": "{{baseUrl}}/api/lobster/customer-service/sessions"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.session && json.session.public_token) {",
+                  "  pm.collectionVariables.set('publicToken', json.session.public_token);",
+                  "  pm.collectionVariables.set('sessionId', String(json.session.id));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Session Detail",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/lobster/customer-service/sessions/{{publicToken}}"
+          }
+        },
+        {
+          "name": "Get Session Messages",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/lobster/customer-service/sessions/{{publicToken}}/messages?after=0"
+          }
+        },
+        {
+          "name": "Send Visitor Message",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Hello from Postman\"\n}"
+            },
+            "url": "{{baseUrl}}/api/lobster/customer-service/sessions/{{publicToken}}/messages/send"
+          }
+        },
+        {
+          "name": "Mark Session Read",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/lobster/customer-service/sessions/{{publicToken}}/read"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin API",
+      "item": [
+        {
+          "name": "List Sessions",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/lobster/customer-service/admin/sessions?limit=10"
+          }
+        },
+        {
+          "name": "Get Session Messages",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/lobster/customer-service/admin/sessions/{{sessionId}}/messages?after=0"
+          }
+        },
+        {
+          "name": "Send Operator Reply",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"你好，我来帮你处理。\"\n}"
+            },
+            "url": "{{baseUrl}}/api/lobster/customer-service/admin/sessions/{{sessionId}}/messages/send"
+          }
+        },
+        {
+          "name": "Close Session",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/lobster/customer-service/admin/sessions/{{sessionId}}/close"
+          }
+        }
+      ]
+    }
+  ]
+}

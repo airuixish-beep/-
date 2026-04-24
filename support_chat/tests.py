@@ -9,7 +9,7 @@ from django.urls import reverse
 
 from config.asgi import application
 
-from .models import ChatMessage, ChatSession
+from .models import ChatMessage, ChatOfflineMessage, ChatSession
 from .services import (
     OpenClawError,
     OpenClawResult,
@@ -206,6 +206,31 @@ class SupportChatViewTests(TestCase):
         payload = response.json()
         self.assertTrue(payload["session"]["has_contact_details"])
         self.assertIn("background_poll_interval_ms", payload)
+
+    def test_public_session_stores_related_order_no(self):
+        response = self.client.post(
+            reverse("support_chat_public:session"),
+            data='{"visitor_email":"amy@example.com","related_order_no":"XO123","language":"en"}',
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        session = ChatSession.objects.get(public_token=response.json()["session"]["public_token"])
+        self.assertEqual(session.related_order_no, "XO123")
+        self.assertTrue(response.json()["session"]["has_order_context"])
+
+    def test_offline_message_submission_creates_record(self):
+        response = self.client.post(
+            reverse("support_chat_public:offline"),
+            data='{"name":"Amy","contact":"amy@example.com","related_order_no":"XO123","message":"Need help"}',
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["ok"])
+        offline_message = ChatOfflineMessage.objects.get()
+        self.assertEqual(offline_message.related_order_no, "XO123")
+        self.assertEqual(offline_message.contact, "amy@example.com")
 
     @override_settings(OPENCLAW_ENABLED=False)
     def test_first_message_can_send_without_contact_details(self):

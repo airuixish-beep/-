@@ -1,12 +1,14 @@
 from decimal import Decimal
 
+from django.core.files.base import ContentFile
+from django.core.management import call_command
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
 from orders.models import Order, OrderItem
 
-from .models import Product
+from .models import Category, InventoryRecord, Product, ProductImage, ProductVariant
 from .services import get_recommended_products
 
 
@@ -132,3 +134,132 @@ class RecommendationViewTests(TestCase):
         self.assertIn("recommended_products", response.context)
         self.assertIn(related, response.context["recommended_products"])
         self.assertNotIn(product, response.context["recommended_products"])
+
+
+class ProductVariantModelTests(TestCase):
+    def test_variant_updates_product_price_stock_and_purchasable(self):
+        product = Product.objects.create(
+            name="Variant Product",
+            slug="variant-product",
+            currency=Product.Currency.USD,
+            is_active=True,
+        )
+
+        ProductVariant.objects.create(
+            product=product,
+            sku="SKU-001",
+            option_summary="50ml / 白色",
+            price=Decimal("199.00"),
+            stock_quantity=8,
+            is_active=True,
+        )
+        ProductVariant.objects.create(
+            product=product,
+            sku="SKU-002",
+            option_summary="100ml / 黑色",
+            price=Decimal("259.00"),
+            stock_quantity=0,
+            is_active=True,
+        )
+
+        product.refresh_from_db()
+
+        self.assertEqual(product.price, Decimal("199.00"))
+        self.assertEqual(product.stock_quantity, 8)
+        self.assertTrue(product.is_purchasable)
+
+    def test_variant_stock_changes_create_inventory_records(self):
+        product = Product.objects.create(
+            name="Inventory Product",
+            slug="inventory-product",
+            currency=Product.Currency.USD,
+        )
+
+        variant = ProductVariant.objects.create(
+            product=product,
+            sku="SKU-003",
+            option_summary="默认款",
+            price=Decimal("99.00"),
+            stock_quantity=5,
+        )
+
+        initial_record = InventoryRecord.objects.get(variant=variant)
+        self.assertEqual(initial_record.change_type, InventoryRecord.ChangeType.INITIAL_STOCK)
+        self.assertEqual(initial_record.before_quantity, 0)
+        self.assertEqual(initial_record.after_quantity, 5)
+
+        variant.stock_quantity = 9
+        variant.save()
+
+        adjustment_record = InventoryRecord.objects.filter(variant=variant).order_by("-id").first()
+        self.assertEqual(adjustment_record.change_type, InventoryRecord.ChangeType.MANUAL_ADJUSTMENT)
+        self.assertEqual(adjustment_record.quantity_change, 4)
+        self.assertEqual(adjustment_record.before_quantity, 5)
+        self.assertEqual(adjustment_record.after_quantity, 9)
+
+    def test_product_display_helpers_use_active_variants(self):
+        category = Category.objects.create(name="香氛", slug="fragrance")
+        product = Product.objects.create(
+            name="Display Product",
+            slug="display-product",
+            category=category,
+            currency=Product.Currency.CNY,
+            is_active=True,
+        )
+
+        ProductVariant.objects.create(
+            product=product,
+            sku="SKU-DISPLAY-1",
+            option_summary="50ml / 白色",
+            price=Decimal("199.00"),
+            stock_quantity=3,
+            is_active=True,
+        )
+        ProductVariant.objects.create(
+            product=product,
+            sku="SKU-DISPLAY-2",
+            option_summary="100ml / 黑色",
+            price=Decimal("299.00"),
+            stock_quantity=9,
+            is_active=True,
+        )
+
+        self.assertEqual(product.display_sku, "")
+        self.assertEqual(product.price_range, (Decimal("199.00"), Decimal("299.00")))
+        self.assertTrue(product.has_variant_price_range)
+        self.assertEqual(product.display_price, Decimal("199.00"))
+        self.assertEqual(product.stock_status_label, "现货可购")
+
+    def test_product_ordered_images_include_gallery_images(self):
+        product = Product.objects.create(name="Image Product", slug="image-product")
+        image_late = ProductImage.objects.create(product=product, alt_text="late", sort_order=20)
+        image_late.image.save("late.png", ContentFile(b"late"), save=True)
+        image_early = ProductImage.objects.create(product=product, alt_text="early", sort_order=10)
+        image_early.image.save("early.png", ContentFile(b"early"), save=True)
+
+        self.assertEqual(product.ordered_images, [image_early, image_late])
+
+
+class DemoSeedCommandTests(TestCase):
+    def test_seed_product_demo_is_idempotent(self):
+        call_command("seed_product_demo")
+        first_counts = {
+            "categories": Category.objects.count(),
+            "products": Product.objects.count(),
+            "variants": ProductVariant.objects.count(),
+            "images": ProductImage.objects.count(),
+        }
+
+        call_command("seed_product_demo")
+        second_counts = {
+            "categories": Category.objects.count(),
+            "products": Product.objects.count(),
+            "variants": ProductVariant.objects.count(),
+            "images": ProductImage.objects.count(),
+        }
+
+        self.assertEqual(first_counts, second_counts)
+        seeded_product = Product.objects.get(slug="stillness-incense-oil")
+        self.assertEqual(seeded_product.currency, Product.Currency.CNY)
+        self.assertTrue(seeded_product.is_purchasable)
+        self.assertGreater(seeded_product.stock_quantity, 0)
