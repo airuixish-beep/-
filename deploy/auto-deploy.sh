@@ -7,6 +7,7 @@ cd "$PROJECT_DIR"
 MODE="${1:-deploy}"
 COMPOSE_ARGS=(-f docker-compose.yml)
 COMPOSE_PROFILES=()
+PROXY_SERVICE=proxy
 
 check_docker() {
   command -v docker >/dev/null 2>&1 || { echo "Docker 未安装，请先安装 Docker Desktop 或 Docker Engine"; exit 1; }
@@ -43,18 +44,34 @@ load_env() {
 }
 
 configure_profiles() {
+  COMPOSE_ARGS=(-f docker-compose.yml)
+  PROXY_SERVICE=proxy
   COMPOSE_PROFILES=()
+
   if [ "${DEPLOY_ENV:-prod}" = "prod" ]; then
+    if [ -f "$PROJECT_DIR/docker-compose.prod.yml" ]; then
+      COMPOSE_ARGS+=( -f docker-compose.prod.yml )
+    fi
     COMPOSE_PROFILES+=(prod)
   fi
+
   if is_true "${CHAT_REALTIME_ENABLED:-false}"; then
     COMPOSE_PROFILES+=(realtime)
   fi
+
   if [ ${#COMPOSE_PROFILES[@]} -gt 0 ]; then
     COMPOSE_PROFILES=$(IFS=,; echo "${COMPOSE_PROFILES[*]}")
     export COMPOSE_PROFILES
   else
     unset COMPOSE_PROFILES || true
+  fi
+
+  if compose_cmd config --services >/tmp/xuanor-compose-services.txt 2>/dev/null; then
+    if grep -qx 'proxy' /tmp/xuanor-compose-services.txt; then
+      PROXY_SERVICE=proxy
+    elif grep -qx 'nginx' /tmp/xuanor-compose-services.txt; then
+      PROXY_SERVICE=nginx
+    fi
   fi
 }
 
@@ -118,7 +135,7 @@ case "$MODE" in
     run_health_checks
     start_core_services
     if [ "${DEPLOY_ENV:-prod}" = "prod" ]; then
-      compose_cmd up -d proxy
+      compose_cmd up -d "$PROXY_SERVICE"
     fi
     compose_cmd ps
     echo "部署完成。"

@@ -1,0 +1,17 @@
+services:
+  web:
+    volumes:
+      - media_data:/app/media
+      - static_data:/app/staticfiles
+    expose:
+      - "8000"
+
+  proxy:
+    container_name: xuanor_site_proxy
+    depends_on:
+      web:
+        condition: service_started
+
+volumes:
+  media_data:
+  static_data:
