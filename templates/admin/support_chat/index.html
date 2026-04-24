@@ -214,8 +214,14 @@
 
       async function fetchJson(url, options) {
         const response = await fetch(url, options);
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || 'Request failed');
+        const contentType = response.headers.get('content-type') || '';
+        const data = contentType.includes('application/json') ? await response.json() : null;
+        if (!response.ok) {
+          throw new Error((data && data.error) || (contentType.includes('text/html') ? 'Expected JSON response but received HTML. Please refresh and sign in again.' : 'Request failed'));
+        }
+        if (!data) {
+          throw new Error('Expected JSON response but received HTML. Please refresh and sign in again.');
+        }
         return data;
       }
 
