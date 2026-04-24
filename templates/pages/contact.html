@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+
+{% block title %}联系方式 | XUANOR{% endblock %}
+
+{% block content %}
+<section class="border-b border-white/10">
+  <div class="mx-auto max-w-4xl px-6 py-20 lg:px-10">
+    <p class="text-xs uppercase tracking-[0.35em] text-xuanor-gold">Contact</p>
+    <h1 class="mt-3 text-4xl leading-tight text-xuanor-cream md:text-5xl">Get in touch with XUANOR.</h1>
+    <div class="mt-8 space-y-6 text-base leading-8 text-xuanor-muted">
+      <p>
+        如需咨询产品、订单、售后或合作事宜，你可以通过以下方式联系 XUANOR。
+      </p>
+    </div>
+
+    <div class="mt-10 space-y-4 rounded-3xl border border-white/10 bg-white/[0.03] p-8 text-base text-xuanor-muted">
+      {% if site_config and site_config.contact_email %}
+        <div>
+          <p class="text-xs uppercase tracking-[0.3em] text-xuanor-gold">Email</p>
+          <p class="mt-2"><a href="mailto:{{ site_config.contact_email }}" class="hover:text-xuanor-gold">{{ site_config.contact_email }}</a></p>
+        </div>
+      {% endif %}
+
+      {% if site_config and site_config.contact_phone %}
+        <div>
+          <p class="text-xs uppercase tracking-[0.3em] text-xuanor-gold">Phone</p>
+          <p class="mt-2">{{ site_config.contact_phone }}</p>
+        </div>
+      {% endif %}
+
+      {% if site_config and site_config.address %}
+        <div>
+          <p class="text-xs uppercase tracking-[0.3em] text-xuanor-gold">Address</p>
+          <p class="mt-2">{{ site_config.address }}</p>
+        </div>
+      {% endif %}
+
+      {% if not site_config or not site_config.contact_email and not site_config.contact_phone and not site_config.address %}
+        <p>当前暂未公开更多联系信息，你也可以先通过 <a href="{% url 'pages:chat' %}" class="text-xuanor-cream hover:text-xuanor-gold">在线咨询</a> 与我们联系。</p>
+      {% endif %}
+    </div>
+  </div>
+</section>
+{% endblock %}

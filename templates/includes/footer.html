@@ -13,11 +13,16 @@
 
     <div class="text-sm text-xuanor-muted">
       <div class="flex flex-wrap gap-4">
-        <a href="/" class="hover:text-xuanor-gold">首页</a>
-        <a href="/products/" class="hover:text-xuanor-gold">产品</a>
-        <a href="/chat/" class="hover:text-xuanor-gold">咨询</a>
+        <a href="{% url 'pages:home' %}" class="hover:text-xuanor-gold">首页</a>
+        <a href="{% url 'products:list' %}" class="hover:text-xuanor-gold">产品</a>
+        <a href="{% url 'pages:chat' %}" class="hover:text-xuanor-gold">咨询</a>
         <a href="/orders/lookup/" class="hover:text-xuanor-gold">查订单</a>
-        <a href="/about/" class="hover:text-xuanor-gold">关于</a>
+        <a href="{% url 'pages:about' %}" class="hover:text-xuanor-gold">关于</a>
+        <a href="{% url 'pages:contact' %}" class="hover:text-xuanor-gold">联系方式</a>
+        <a href="{% url 'pages:refund_policy' %}" class="hover:text-xuanor-gold">退款政策</a>
+        <a href="{% url 'pages:shipping_policy' %}" class="hover:text-xuanor-gold">发货政策</a>
+        <a href="{% url 'pages:privacy_policy' %}" class="hover:text-xuanor-gold">隐私政策</a>
+        <a href="{% url 'pages:terms_of_service' %}" class="hover:text-xuanor-gold">服务条款</a>
         <a href="/admin/" class="hover:text-xuanor-gold">后台</a>
       </div>
       <p class="mt-3">© {% now "Y" %} {% if site_config %}{{ site_config.site_name }}{% else %}XUANOR{% endif %}</p>

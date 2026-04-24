@@ -14,6 +14,26 @@ def about(request):
     return render(request, "pages/about.html")
 
 
+def contact(request):
+    return render(request, "pages/contact.html")
+
+
+def refund_policy(request):
+    return render(request, "pages/refund_policy.html")
+
+
+def shipping_policy(request):
+    return render(request, "pages/shipping_policy.html")
+
+
+def privacy_policy(request):
+    return render(request, "pages/privacy_policy.html")
+
+
+def terms_of_service(request):
+    return render(request, "pages/terms_of_service.html")
+
+
 def chat(request):
     consultation_product = Product.objects.filter(is_active=True, hero_image__isnull=False).order_by("sort_order", "-created_at").first()
     return render(
