@@ -16,6 +16,7 @@ class ChatSession(models.Model):
     status = models.CharField("会话状态", max_length=20, choices=Status.choices, default=Status.OPEN)
     visitor_name = models.CharField("访客姓名", max_length=100, blank=True)
     visitor_email = models.EmailField("访客邮箱", blank=True)
+    related_order_no = models.CharField("关联订单号", max_length=32, blank=True)
     visitor_language = models.CharField("访客语言", max_length=20, default="en")
     operator_language = models.CharField("客服语言", max_length=20, default="zh-hans")
     last_message_at = models.DateTimeField("最后消息时间", blank=True, null=True)
@@ -111,3 +112,25 @@ class ChatMessage(models.Model):
         elif self.sender_type == self.SenderType.OPERATOR:
             self.session.status = ChatSession.Status.WAITING_VISITOR
         self.session.save(update_fields=["last_message_at", "status", "updated_at"])
+
+
+class ChatOfflineMessage(models.Model):
+    class Status(models.TextChoices):
+        NEW = "new", "待处理"
+        DONE = "done", "已处理"
+
+    name = models.CharField("姓名", max_length=100, blank=True)
+    contact = models.CharField("联系方式", max_length=255)
+    related_order_no = models.CharField("关联订单号", max_length=32, blank=True)
+    message = models.TextField("留言内容")
+    status = models.CharField("处理状态", max_length=20, choices=Status.choices, default=Status.NEW)
+    created_at = models.DateTimeField("创建时间", auto_now_add=True)
+    updated_at = models.DateTimeField("更新时间", auto_now=True)
+
+    class Meta:
+        ordering = ["status", "-created_at"]
+        verbose_name = "离线留言"
+        verbose_name_plural = "离线留言"
+
+    def __str__(self):
+        return self.name or self.contact

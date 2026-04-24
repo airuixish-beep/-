@@ -9,7 +9,7 @@ from django.template.response import TemplateResponse
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_GET, require_POST
 
-from .models import ChatMessage, ChatSession
+from .models import ChatMessage, ChatOfflineMessage, ChatSession
 from .realtime import broadcast_session_closed
 from .services import (
     OpenClawError,
@@ -45,6 +45,23 @@ def _get_public_session(request):
 
 def _json_error(message, *, status=400):
     return JsonResponse({"error": message}, status=status)
+
+
+def _create_offline_message(payload):
+    name = (payload.get("name") or payload.get("visitor_name") or "").strip()
+    contact = (payload.get("contact") or payload.get("visitor_email") or "").strip()
+    message = (payload.get("message") or payload.get("text") or "").strip()
+    related_order_no = (payload.get("related_order_no") or "").strip()
+    if not contact:
+        raise ValueError("Please leave an email or other contact detail.")
+    if not message:
+        raise ValueError("Message text cannot be empty.")
+    return ChatOfflineMessage.objects.create(
+        name=name,
+        contact=contact,
+        related_order_no=related_order_no,
+        message=message,
+    )
 
 
 def _get_int_query_param(request, name, *, default=0):
@@ -95,6 +112,7 @@ def session_view(request):
         token=token,
         visitor_name=(payload.get("visitor_name") or "").strip(),
         visitor_email=(payload.get("visitor_email") or "").strip(),
+        related_order_no=(payload.get("related_order_no") or "").strip(),
         visitor_language=visitor_language,
     )
     messages = get_incremental_messages(session, after_id=0, viewer="visitor")
@@ -142,6 +160,16 @@ def mark_read_view(request):
 
 
 @require_POST
+def offline_message_view(request):
+    payload = _parse_json_body(request)
+    try:
+        offline_message = _create_offline_message(payload)
+    except ValueError as exc:
+        return _json_error(str(exc))
+    return JsonResponse({"ok": True, "offline_message_id": offline_message.id})
+
+
+@require_POST
 def visitor_send_view(request):
     if _is_rate_limited(request, "send", getattr(settings, "CHAT_SEND_RATE_LIMIT", 60)):
         return _json_error("You are sending messages too quickly. Please wait a moment and try again.", status=429)
@@ -149,6 +177,13 @@ def visitor_send_view(request):
     if session.status == ChatSession.Status.CLOSED:
         return _json_error("This conversation has ended. Please leave your email and we will follow up.", status=409)
     payload = _parse_json_body(request)
+    session, _created = create_or_resume_session(
+        token=session.public_token,
+        visitor_name=(payload.get("visitor_name") or "").strip(),
+        visitor_email=(payload.get("visitor_email") or "").strip(),
+        related_order_no=(payload.get("related_order_no") or "").strip(),
+        visitor_language=payload.get("language") or session.visitor_language,
+    )
     try:
         message = create_message(session=session, sender_type=ChatMessage.SenderType.VISITOR, text=payload.get("text", ""))
     except ValueError as exc:

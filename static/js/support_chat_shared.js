@@ -45,13 +45,16 @@
     const messagesUrl = root.dataset.messagesUrl;
     const sendUrl = root.dataset.sendUrl;
     const readUrl = root.dataset.readUrl;
+    const offlineUrl = root.dataset.offlineUrl;
     const defaultLanguage = root.dataset.defaultLanguage || 'en';
     const initialStatusText = root.dataset.initialStatus || 'Usually replies within a few hours.';
     const sendingStatusText = root.dataset.sendingStatus || 'Sending your message…';
     const sentWithoutEmailStatusText = root.dataset.sentWithoutEmailStatus || 'Want a follow-up? Add your email below.';
+    const offlineStatusText = root.dataset.offlineStatus || 'Please leave your contact detail so we can follow up.';
     const composerField = form.elements.text;
     const contactNameField = form.elements.visitor_name;
     const contactEmailField = form.elements.visitor_email;
+    const orderField = form.elements.related_order_no;
     const draftStorageKey = (root.id || 'support-chat') + ':draft';
 
     let initialized = false;
@@ -108,6 +111,7 @@
       return {
         visitor_name: contactNameField ? contactNameField.value.trim() : '',
         visitor_email: contactEmailField ? contactEmailField.value.trim() : '',
+        related_order_no: orderField ? orderField.value.trim() : '',
       };
     }
 
@@ -138,6 +142,9 @@
       }
       if (session.visitor_email && contactEmailField) {
         contactEmailField.value = session.visitor_email;
+      }
+      if (session.related_order_no && orderField) {
+        orderField.value = session.related_order_no;
       }
     }
 
@@ -437,6 +444,45 @@
       }
     }
 
+    async function submitOfflineMessage() {
+      if (isSending || !offlineUrl) return;
+      clearError();
+      const text = composerField.value.trim();
+      const payload = getContactPayload();
+      if (!text) {
+        showError('请先填写留言内容。');
+        return;
+      }
+      if (!payload.visitor_email) {
+        showError('请至少留下邮箱或其他联系方式。');
+        return;
+      }
+      setSendingState(true);
+      try {
+        await fetchJson(offlineUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCsrfToken(),
+          },
+          body: JSON.stringify({
+            name: payload.visitor_name,
+            contact: payload.visitor_email,
+            related_order_no: payload.related_order_no,
+            message: text,
+          }),
+        });
+        composerField.value = '';
+        clearDraft();
+        setStatus(offlineStatusText);
+        callHook(config.onOfflineSubmitted, payload);
+      } catch (error) {
+        showError(error.message);
+      } finally {
+        setSendingState(false);
+      }
+    }
+
     function bindComposer() {
       submitButton.dataset.idleLabel = submitButton.textContent;
       composerField.addEventListener('input', saveDraft);
@@ -465,6 +511,13 @@
         if (!retryButton) return;
         sendMessage(retryButton.dataset.clientId).catch(function () {});
       });
+
+      const offlineButton = root.querySelector('[data-role="offline-submit"]');
+      if (offlineButton) {
+        offlineButton.addEventListener('click', function () {
+          submitOfflineMessage().catch(function () {});
+        });
+      }
     }
 
     bindComposer();

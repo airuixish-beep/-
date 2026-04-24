@@ -1,18 +1,18 @@
 {% load static %}
 {% if CHAT_WIDGET_ENABLED %}
-  <div id="support-chat-widget" class="support-chat fixed bottom-6 right-6 z-50" data-session-url="{% url 'support_chat_public:session' %}" data-messages-url="{% url 'support_chat_public:messages' %}" data-send-url="{% url 'support_chat_public:send' %}" data-read-url="{% url 'support_chat_public:read' %}" data-default-language="{{ request.LANGUAGE_CODE|default:'zh-hans' }}" data-teaser-delay="8000">
+  <div id="support-chat-widget" class="support-chat fixed bottom-6 right-6 z-50" data-session-url="{% url 'support_chat_public:session' %}" data-messages-url="{% url 'support_chat_public:messages' %}" data-send-url="{% url 'support_chat_public:send' %}" data-read-url="{% url 'support_chat_public:read' %}" data-offline-url="{% url 'support_chat_public:offline' %}" data-default-language="{{ request.LANGUAGE_CODE|default:'zh-hans' }}" data-teaser-delay="8000" data-initial-status="通常会在数小时内回复。" data-sending-status="正在发送你的消息…" data-sent-without-email-status="如果你希望离开页面后继续收到回复，可以补充邮箱。" data-offline-status="当前为留言模式，请留下联系方式。">
     <div class="support-chat__teaser hidden mb-3 w-[20rem] rounded-[1.25rem] border border-white/10 bg-xuanor-panel px-4 py-4 text-sm text-xuanor-cream shadow-2xl" data-role="teaser">
       <div class="flex items-start justify-between gap-3">
         <div>
-          <p class="font-medium text-xuanor-cream">Need help choosing the right piece?</p>
-          <p class="mt-1 text-xs leading-5 text-xuanor-muted">Chat with us in your language. We translate automatically.</p>
+          <p class="font-medium text-xuanor-cream">需要帮助吗？</p>
+          <p class="mt-1 text-xs leading-5 text-xuanor-muted">可以直接咨询商品、订单或售后问题。</p>
         </div>
-        <button type="button" class="text-xs text-xuanor-muted hover:text-xuanor-gold" data-role="dismiss-teaser">Dismiss</button>
+        <button type="button" class="text-xs text-xuanor-muted hover:text-xuanor-gold" data-role="dismiss-teaser">关闭</button>
       </div>
     </div>
 
     <button type="button" class="support-chat__toggle rounded-full border border-xuanor-gold bg-xuanor-gold px-5 py-3 text-sm font-medium text-black shadow-lg" data-role="toggle">
-      Chat with us
+      联系客服
       <span class="support-chat__badge hidden" data-role="badge">0</span>
     </button>
 
@@ -20,38 +20,40 @@
       <header class="border-b border-white/10 px-5 py-4">
         <div class="flex items-center justify-between gap-4">
           <div>
-            <p class="text-sm text-xuanor-cream">Chat with XUANOR</p>
-            <p class="mt-1 text-xs text-xuanor-muted">Message us in your language. We translate automatically.</p>
-            <p class="mt-1 text-xs text-xuanor-muted">Leave your email if you want a follow-up reply.</p>
+            <p class="text-sm text-xuanor-cream">XUANOR 在线客服</p>
+            <p class="mt-1 text-xs text-xuanor-muted">可咨询商品、订单与售后。</p>
+            <p class="mt-1 text-xs text-xuanor-muted">如需后续跟进，请留下邮箱或其他联系方式。</p>
           </div>
-          <button type="button" class="text-sm text-xuanor-muted hover:text-xuanor-gold" data-role="close">Close</button>
+          <button type="button" class="text-sm text-xuanor-muted hover:text-xuanor-gold" data-role="close">关闭</button>
         </div>
       </header>
 
       <div class="support-chat__messages max-h-96 space-y-3 overflow-y-auto px-5 py-4" data-role="messages">
-        <div class="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-xuanor-muted">
-          Welcome. Send us a message and we will help you as soon as possible.
+        <div class="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-xuanor-muted" data-role="initial-message">
+          欢迎留言。你可以直接告诉我们商品问题、订单号，或需要协助的事项。
         </div>
       </div>
 
       <form class="border-t border-white/10 px-5 py-4" data-role="form">
         {% csrf_token %}
         <div class="grid gap-3">
-          <textarea name="text" rows="3" placeholder="Type your message..." class="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-xuanor-cream outline-none placeholder:text-xuanor-muted"></textarea>
+          <textarea name="text" rows="3" placeholder="请输入你的问题…" class="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-xuanor-cream outline-none placeholder:text-xuanor-muted"></textarea>
 
           <button type="button" class="text-left text-xs text-xuanor-muted hover:text-xuanor-gold" data-role="details-toggle">
-            Add your name or email for follow-up
+            补充姓名、邮箱或订单号
           </button>
 
           <div class="hidden grid gap-3" data-role="details-fields">
-            <input type="text" name="visitor_name" placeholder="Your name (optional)" class="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-xuanor-cream outline-none placeholder:text-xuanor-muted">
-            <input type="email" name="visitor_email" placeholder="Email (optional)" class="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-xuanor-cream outline-none placeholder:text-xuanor-muted">
+            <input type="text" name="visitor_name" placeholder="你的名字（可选）" class="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-xuanor-cream outline-none placeholder:text-xuanor-muted">
+            <input type="email" name="visitor_email" placeholder="邮箱或联系方式（可选）" class="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-xuanor-cream outline-none placeholder:text-xuanor-muted">
+            <input type="text" name="related_order_no" placeholder="订单号（可选）" class="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-xuanor-cream outline-none placeholder:text-xuanor-muted">
           </div>
 
           <div class="flex items-center justify-between gap-3">
-            <p class="text-xs text-xuanor-muted" data-role="status">Usually replies within a few hours.</p>
-            <button type="submit" class="rounded-full border border-xuanor-gold bg-xuanor-gold px-4 py-3 text-sm font-medium text-black" data-role="submit">Send</button>
+            <p class="text-xs text-xuanor-muted" data-role="status">通常会在数小时内回复。</p>
+            <button type="submit" class="rounded-full border border-xuanor-gold bg-xuanor-gold px-4 py-3 text-sm font-medium text-black" data-role="submit">发送</button>
           </div>
+          <button type="button" class="text-left text-xs text-xuanor-muted hover:text-xuanor-gold" data-role="offline-submit">转为留言</button>
           <p class="hidden text-xs text-red-300" data-role="error"></p>
         </div>
       </form>

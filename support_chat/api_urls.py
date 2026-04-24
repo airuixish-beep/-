@@ -10,6 +10,7 @@ urlpatterns = [
     path("sessions/<str:public_token>/messages", api_views.api_session_messages_view, name="session_messages"),
     path("sessions/<str:public_token>/messages/send", api_views.api_session_send_view, name="session_send"),
     path("sessions/<str:public_token>/read", api_views.api_session_read_view, name="session_read"),
+    path("offline-messages", api_views.api_offline_message_view, name="offline_message"),
     path("admin/sessions", api_views.api_admin_sessions_view, name="admin_sessions"),
     path("admin/sessions/<int:session_id>/messages", api_views.api_admin_session_messages_view, name="admin_session_messages"),
     path("admin/sessions/<int:session_id>/messages/send", api_views.api_admin_session_reply_view, name="admin_session_reply"),

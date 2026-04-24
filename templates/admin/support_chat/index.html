@@ -4,7 +4,7 @@
   <div id="support-chat-admin" data-sessions-url="/admin/support-chat/sessions/" data-messages-url="/admin/support-chat/messages/" data-reply-url="/admin/support-chat/reply/" data-draft-url="/admin/support-chat/draft/" data-close-url="/admin/support-chat/close/" data-poll-interval="{{ poll_interval_ms }}" data-realtime-enabled="{{ realtime_enabled|yesno:'true,false' }}" data-websocket-url="{{ operator_websocket_url }}" class="space-y-6">
     <div>
       <h1 style="margin-bottom: 4px;">Support chat</h1>
-      <p style="margin: 0; color: #666;">Visitor and agent messages are translated automatically.</p>
+      <p style="margin: 0; color: #666;">集中处理网站咨询、订单问题和离线留言。</p>
       <div style="margin-top: 10px; font-size: 12px; color: #444; display: flex; gap: 12px; flex-wrap: wrap;">
         <span>OpenClaw: <strong>{% if openclaw_enabled %}Enabled{% else %}Disabled{% endif %}</strong></span>
         <span>Auto reply: <strong>{% if openclaw_auto_reply_enabled %}On{% else %}Off{% endif %}</strong></span>
@@ -17,12 +17,12 @@
         <div style="padding: 16px; border-bottom: 1px solid #eee;"><strong>Conversations</strong></div>
         <div id="support-chat-session-list">
           {% for session in sessions %}
-            <button type="button" class="support-chat-session-item{% if selected_session and selected_session.id == session.id %} is-active{% endif %}" data-session-id="{{ session.id }}" data-visitor-name="{{ session.visitor_name|default:'Anonymous visitor' }}" data-visitor-email="{{ session.visitor_email }}" data-visitor-language="{{ session.visitor_language }}" data-status="{{ session.status }}" style="display: block; width: 100%; padding: 14px 16px; text-align: left; border: 0; border-bottom: 1px solid #f1f1f1; background: {% if selected_session and selected_session.id == session.id %}#f7f7f7{% else %}#fff{% endif %}; cursor: pointer;">
+            <button type="button" class="support-chat-session-item{% if selected_session and selected_session.id == session.id %} is-active{% endif %}" data-session-id="{{ session.id }}" data-visitor-name="{{ session.visitor_name|default:'Anonymous visitor' }}" data-visitor-email="{{ session.visitor_email }}" data-related-order-no="{{ session.related_order_no }}" data-visitor-language="{{ session.visitor_language }}" data-status="{{ session.status }}" style="display: block; width: 100%; padding: 14px 16px; text-align: left; border: 0; border-bottom: 1px solid #f1f1f1; background: {% if selected_session and selected_session.id == session.id %}#f7f7f7{% else %}#fff{% endif %}; cursor: pointer;">
               <div style="display: flex; justify-content: space-between; gap: 12px; align-items: start;">
                 <strong>{{ session.visitor_name|default:'Anonymous visitor' }}</strong>
                 <span style="color: {% if session.unread_for_operator %}#b42318{% else %}#666{% endif %}; font-size: 12px;">{{ session.status }}</span>
               </div>
-              <div style="margin-top: 6px; font-size: 12px; color: #666;">{{ session.visitor_email|default:session.visitor_language }}</div>
+              <div style="margin-top: 6px; font-size: 12px; color: #666;">{{ session.visitor_email|default:session.visitor_language }}{% if session.related_order_no %} · 订单 {{ session.related_order_no }}{% endif %}</div>
               <div style="margin-top: 6px; font-size: 12px; color: #444; line-height: 1.5;">{{ session.messages.last.display_for_operator|default:''|truncatechars:80 }}</div>
               <div style="margin-top: 8px; font-size: 12px; color: #666;">Unread {{ session.unread_for_operator }}{% if session.last_message_at %} · {{ session.last_message_at|date:'Y-m-d H:i' }}{% endif %}</div>
             </button>
@@ -35,7 +35,7 @@
         <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px; border-bottom: 1px solid #eee; gap: 12px;">
           <div>
             <strong id="support-chat-current-title">{% if selected_session %}{{ selected_session.visitor_name|default:'Anonymous visitor' }}{% else %}Select a conversation{% endif %}</strong>
-            <div id="support-chat-current-meta" style="margin-top: 4px; color: #666; font-size: 12px;">{% if selected_session %}{{ selected_session.visitor_email|default:selected_session.visitor_language }} · {{ selected_session.status }}{% endif %}</div>
+            <div id="support-chat-current-meta" style="margin-top: 4px; color: #666; font-size: 12px;">{% if selected_session %}{{ selected_session.visitor_email|default:selected_session.visitor_language }}{% if selected_session.related_order_no %} · 订单 {{ selected_session.related_order_no }}{% endif %} · {{ selected_session.status }}{% endif %}</div>
           </div>
           <button type="button" id="support-chat-close" {% if not selected_session %}disabled{% endif %}>Close conversation</button>
         </div>
@@ -184,9 +184,9 @@
 
       function renderSessionList(sessions) {
         sessionList.innerHTML = sessions.length ? sessions.map(function (session) {
-          return '<button type="button" class="support-chat-session-item' + (session.id === selectedSessionId ? ' is-active' : '') + '" data-session-id="' + session.id + '" data-visitor-name="' + escapeHtml(session.visitor_name || 'Anonymous visitor') + '" data-visitor-email="' + escapeHtml(session.visitor_email || '') + '" data-visitor-language="' + escapeHtml(session.visitor_language || '') + '" data-status="' + escapeHtml(session.status || '') + '" style="display:block;width:100%;padding:14px 16px;text-align:left;border:0;border-bottom:1px solid #f1f1f1;background:' + (session.id === selectedSessionId ? '#f7f7f7' : '#fff') + ';cursor:pointer;">'
+          return '<button type="button" class="support-chat-session-item' + (session.id === selectedSessionId ? ' is-active' : '') + '" data-session-id="' + session.id + '" data-visitor-name="' + escapeHtml(session.visitor_name || 'Anonymous visitor') + '" data-visitor-email="' + escapeHtml(session.visitor_email || '') + '" data-related-order-no="' + escapeHtml(session.related_order_no || '') + '" data-visitor-language="' + escapeHtml(session.visitor_language || '') + '" data-status="' + escapeHtml(session.status || '') + '" style="display:block;width:100%;padding:14px 16px;text-align:left;border:0;border-bottom:1px solid #f1f1f1;background:' + (session.id === selectedSessionId ? '#f7f7f7' : '#fff') + ';cursor:pointer;">'
             + '<div style="display:flex;justify-content:space-between;gap:12px;align-items:start;"><strong>' + escapeHtml(session.visitor_name || 'Anonymous visitor') + '</strong><span style="color:' + (session.unread_for_operator ? '#b42318' : '#666') + ';font-size:12px;">' + escapeHtml(session.status) + '</span></div>'
-            + '<div style="margin-top:6px;font-size:12px;color:#666;">' + escapeHtml(session.visitor_email || session.visitor_language || '') + '</div>'
+            + '<div style="margin-top:6px;font-size:12px;color:#666;">' + escapeHtml(session.visitor_email || session.visitor_language || '') + (session.related_order_no ? ' · 订单 ' + escapeHtml(session.related_order_no) : '') + '</div>'
             + '<div style="margin-top:6px;font-size:12px;color:#444;line-height:1.5;">' + escapeHtml(session.last_message_preview || '') + '</div>'
             + '<div style="margin-top:8px;font-size:12px;color:#666;">Unread ' + escapeHtml(session.unread_for_operator) + (session.last_message_at ? ' · ' + escapeHtml(session.last_message_at.replace('T', ' ').slice(0, 16)) : '') + '</div>'
             + '</button>';
@@ -195,7 +195,9 @@
 
       function applySessionMeta(session) {
         title.textContent = session.visitor_name || 'Anonymous visitor';
-        meta.textContent = [session.visitor_email || session.visitor_language, session.status].filter(Boolean).join(' · ');
+        const primaryMeta = session.visitor_email || session.visitor_language;
+        const orderMeta = session.related_order_no ? ('订单 ' + session.related_order_no) : '';
+        meta.textContent = [primaryMeta, orderMeta, session.status].filter(Boolean).join(' · ');
       }
 
       function setSendingState(sending) {
@@ -335,6 +337,7 @@
         selectSession(button.dataset.sessionId, {
           visitor_name: button.dataset.visitorName,
           visitor_email: button.dataset.visitorEmail,
+          related_order_no: button.dataset.relatedOrderNo,
           visitor_language: button.dataset.visitorLanguage,
           status: button.dataset.status,
         }).catch(function (error) {

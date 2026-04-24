@@ -140,7 +140,7 @@
         </article>
       </div>
 
-      <div id="support-chat-page" class="overflow-hidden rounded-[2rem] border border-white/10 bg-xuanor-panel/95 shadow-2xl" data-session-url="{% url 'support_chat_public:session' %}" data-messages-url="{% url 'support_chat_public:messages' %}" data-send-url="{% url 'support_chat_public:send' %}" data-read-url="{% url 'support_chat_public:read' %}" data-default-language="{{ request.LANGUAGE_CODE|default:'zh-hans' }}" data-initial-status="通常会在数小时内回复。" data-sending-status="正在发送你的消息…" data-sent-without-email-status="如果你希望离开页面后继续收到回复，可以补充邮箱。">
+      <div id="support-chat-page" class="overflow-hidden rounded-[2rem] border border-white/10 bg-xuanor-panel/95 shadow-2xl" data-session-url="{% url 'support_chat_public:session' %}" data-messages-url="{% url 'support_chat_public:messages' %}" data-send-url="{% url 'support_chat_public:send' %}" data-read-url="{% url 'support_chat_public:read' %}" data-offline-url="{% url 'support_chat_public:offline' %}" data-default-language="{{ request.LANGUAGE_CODE|default:'zh-hans' }}" data-initial-status="通常会在数小时内回复。" data-sending-status="正在发送你的消息…" data-sent-without-email-status="如果你希望离开页面后继续收到回复，可以补充邮箱。" data-offline-status="当前为留言模式，请留下联系方式。">
         <div class="border-b border-white/10 bg-white/[0.02] px-6 py-6 sm:px-8">
           <div class="flex flex-wrap items-start justify-between gap-4">
             <div class="max-w-xl">
@@ -166,14 +166,17 @@
             <textarea name="text" rows="4" placeholder="例如：我想送给一位刚开始新阶段的朋友，希望它安静、克制，但有一点祝福的意味。" class="min-h-[8.5rem] rounded-[1.5rem] border border-white/10 bg-black/20 px-5 py-4 text-sm leading-7 text-xuanor-cream outline-none placeholder:text-xuanor-muted"></textarea>
 
             <div class="grid gap-4 sm:grid-cols-2">
-              <input type="text" name="visitor_name" placeholder="你的名字（可选）" class="rounded-[1.25rem] border border-white/10 bg-black/20 px-4 py-3 text-sm text-xuanor-cream outline-none placeholder:text-xuanor-muted">
-              <input type="email" name="visitor_email" placeholder="邮箱（可选，用于后续跟进）" class="rounded-[1.25rem] border border-white/10 bg-black/20 px-4 py-3 text-sm text-xuanor-cream outline-none placeholder:text-xuanor-muted">
+              <input type="text" name="visitor_name" value="{{ prefill_name }}" placeholder="你的名字（可选）" class="rounded-[1.25rem] border border-white/10 bg-black/20 px-4 py-3 text-sm text-xuanor-cream outline-none placeholder:text-xuanor-muted">
+              <input type="email" name="visitor_email" value="{{ prefill_email }}" placeholder="邮箱或联系方式（可选，用于后续跟进）" class="rounded-[1.25rem] border border-white/10 bg-black/20 px-4 py-3 text-sm text-xuanor-cream outline-none placeholder:text-xuanor-muted">
             </div>
+
+            <input type="text" name="related_order_no" value="{{ prefill_order_no }}" placeholder="订单号（可选）" class="rounded-[1.25rem] border border-white/10 bg-black/20 px-4 py-3 text-sm text-xuanor-cream outline-none placeholder:text-xuanor-muted">
 
             <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <p class="text-xs text-xuanor-muted" data-role="status">通常会在数小时内回复。</p>
               <button type="submit" class="inline-flex items-center justify-center rounded-full border border-xuanor-gold bg-xuanor-gold px-6 py-3 text-sm font-medium text-black transition hover:opacity-90" data-role="submit">发送消息</button>
             </div>
+            <button type="button" class="text-left text-xs text-xuanor-muted hover:text-xuanor-gold" data-role="offline-submit">如果暂时不在线，可直接提交留言</button>
             <p class="hidden text-xs text-red-300" data-role="error"></p>
           </div>
         </form>

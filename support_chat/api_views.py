@@ -4,7 +4,7 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_GET, require_POST
 
-from .models import ChatMessage, ChatSession
+from .models import ChatMessage, ChatOfflineMessage, ChatSession
 from .realtime import broadcast_session_closed
 from .services import (
     create_message,
@@ -14,7 +14,7 @@ from .services import (
     get_session_summary,
     mark_session_seen,
 )
-from .views import _get_int_query_param, _is_rate_limited, _json_error, _parse_json_body
+from .views import _create_offline_message, _get_int_query_param, _is_rate_limited, _json_error, _parse_json_body
 
 
 @require_POST
@@ -27,6 +27,7 @@ def api_session_create_view(request):
         token=(payload.get("public_token") or "").strip(),
         visitor_name=(payload.get("visitor_name") or "").strip(),
         visitor_email=(payload.get("visitor_email") or "").strip(),
+        related_order_no=(payload.get("related_order_no") or "").strip(),
         visitor_language=payload.get("language") or "en",
     )
     messages = get_incremental_messages(session, after_id=0, viewer="visitor")
@@ -83,6 +84,7 @@ def api_session_send_view(request, public_token):
         token=session.public_token,
         visitor_name=(payload.get("visitor_name") or "").strip(),
         visitor_email=(payload.get("visitor_email") or "").strip(),
+        related_order_no=(payload.get("related_order_no") or "").strip(),
         visitor_language=payload.get("language") or session.visitor_language,
     )
     try:
@@ -103,6 +105,16 @@ def api_session_read_view(request, public_token):
     session = get_object_or_404(ChatSession, public_token=public_token)
     mark_session_seen(session, viewer="visitor")
     return JsonResponse({"ok": True})
+
+
+@require_POST
+def api_offline_message_view(request):
+    payload = _parse_json_body(request)
+    try:
+        offline_message = _create_offline_message(payload)
+    except ValueError as exc:
+        return _json_error(str(exc))
+    return JsonResponse({"ok": True, "offline_message_id": offline_message.id})
 
 
 @user_passes_test(lambda user: user.is_authenticated and user.is_staff)

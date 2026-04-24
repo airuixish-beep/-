@@ -9,4 +9,5 @@ urlpatterns = [
     path("messages/", views.messages_view, name="messages"),
     path("send/", views.visitor_send_view, name="send"),
     path("read/", views.mark_read_view, name="read"),
+    path("offline/", views.offline_message_view, name="offline"),
 ]

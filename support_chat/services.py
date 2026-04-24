@@ -246,7 +246,7 @@ def get_preferred_visitor_language(request):
 
 
 @transaction.atomic
-def create_or_resume_session(*, token=None, visitor_name="", visitor_email="", visitor_language="en"):
+def create_or_resume_session(*, token=None, visitor_name="", visitor_email="", related_order_no="", visitor_language="en"):
     session = None
     if token:
         session = ChatSession.objects.filter(public_token=token).first()
@@ -258,6 +258,10 @@ def create_or_resume_session(*, token=None, visitor_name="", visitor_email="", v
         if visitor_email and session.visitor_email != visitor_email:
             session.visitor_email = visitor_email
             updated_fields.append("visitor_email")
+        normalized_order_no = (related_order_no or "").strip()
+        if normalized_order_no and session.related_order_no != normalized_order_no:
+            session.related_order_no = normalized_order_no
+            updated_fields.append("related_order_no")
         normalized_language = normalize_language(visitor_language)
         if normalized_language and session.visitor_language != normalized_language:
             session.visitor_language = normalized_language
@@ -269,6 +273,7 @@ def create_or_resume_session(*, token=None, visitor_name="", visitor_email="", v
     session = ChatSession.objects.create(
         visitor_name=visitor_name,
         visitor_email=visitor_email,
+        related_order_no=(related_order_no or "").strip(),
         visitor_language=normalize_language(visitor_language),
         operator_language=normalize_language(getattr(settings, "CHAT_DEFAULT_OPERATOR_LANGUAGE", "zh-hans")),
         status=ChatSession.Status.OPEN,
@@ -520,6 +525,7 @@ def get_session_summary(session):
         "status": session.status,
         "visitor_name": visitor_name,
         "visitor_email": session.visitor_email,
+        "related_order_no": session.related_order_no,
         "visitor_language": session.visitor_language,
         "operator_language": session.operator_language,
         "last_message_at": session.last_message_at.isoformat() if session.last_message_at else None,
@@ -529,4 +535,5 @@ def get_session_summary(session):
         "last_message_preview_visitor": last_message_preview_visitor[:80],
         "last_message_sender_type": last_message_sender_type,
         "has_contact_details": bool(session.visitor_name or session.visitor_email),
+        "has_order_context": bool(session.related_order_no),
     }

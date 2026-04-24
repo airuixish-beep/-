@@ -22,6 +22,9 @@ def chat(request):
         {
             "hide_support_chat_widget": True,
             "consultation_product": consultation_product,
+            "prefill_name": (request.GET.get("name") or "").strip(),
+            "prefill_email": (request.GET.get("email") or "").strip(),
+            "prefill_order_no": (request.GET.get("order_no") or "").strip(),
         },
     )
 
