@@ -139,8 +139,20 @@ run_release_steps() {
   fi
 
   compose_cmd up --build -d "${release_services[@]}"
+  ensure_local_test_database
   compose_cmd run --rm web python manage.py migrate --noinput
   compose_cmd run --rm web python manage.py collectstatic --noinput
+}
+
+ensure_local_test_database() {
+  if [ "${DEPLOY_ENV:-prod}" != "local" ] || [ "${DB_ENGINE:-sqlite}" != "mysql" ]; then
+    return
+  fi
+
+  local test_db_name="${DB_TEST_NAME:-${DB_NAME:-}}"
+  [ -n "$test_db_name" ] || return
+
+  compose_cmd exec -T db mysql -uroot -p"${MYSQL_ROOT_PASSWORD}" -e "CREATE DATABASE IF NOT EXISTS \`${test_db_name}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; GRANT ALL PRIVILEGES ON \`${test_db_name}\`.* TO '${DB_USER}'@'%'; FLUSH PRIVILEGES;" >/dev/null
 }
 
 run_health_checks() {

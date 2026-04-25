@@ -1,0 +1,77 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ quiz.title }} | XUANOR{% endblock %}
+{% block meta_description %}{{ quiz.subtitle|default:quiz.intro_body|truncatechars:140 }}{% endblock %}
+
+{% block content %}
+<section class="border-b border-white/10">
+  <div class="mx-auto grid max-w-7xl gap-12 px-6 py-20 lg:grid-cols-[1.1fr_0.9fr] lg:px-10 lg:py-28">
+    <div class="max-w-2xl">
+      <p class="mb-4 text-xs uppercase tracking-[0.35em] text-xuanor-gold">XUANOR · 五行人格测试</p>
+      <h1 class="text-4xl leading-tight text-xuanor-cream md:text-5xl lg:text-6xl">{{ quiz.title }}</h1>
+      {% if quiz.subtitle %}
+        <p class="mt-6 max-w-xl text-lg leading-8 text-xuanor-muted">{{ quiz.subtitle }}</p>
+      {% endif %}
+      <div class="mt-8 flex flex-wrap gap-3 text-xs uppercase tracking-[0.28em]">
+        <span class="rounded-full border border-white/10 px-4 py-2 text-xuanor-muted">预计 {{ quiz.estimated_minutes }} 分钟</span>
+        <span class="rounded-full border border-white/10 px-4 py-2 text-xuanor-muted">情绪价值优先</span>
+        <span class="rounded-full border border-white/10 px-4 py-2 text-xuanor-muted">结果可重复测试</span>
+      </div>
+      <div class="mt-8 rounded-[1.75rem] border border-xuanor-gold/20 bg-xuanor-gold/5 p-6">
+        <p class="text-sm leading-7 text-xuanor-cream">这不是在判断你是谁，而是在帮助你识别：你此刻最需要被怎样对待。</p>
+        <p class="mt-3 text-sm leading-7 text-xuanor-muted">我们会先命名你的情绪状态，再给出适合你的仪式路径与商品推荐。商品不是答案本身，而是情绪被承接之后的延伸。</p>
+      </div>
+      {% if quiz.intro_title or quiz.intro_body %}
+        <div class="mt-8 rounded-[1.75rem] border border-white/10 bg-white/[0.02] p-6">
+          {% if quiz.intro_title %}
+            <h2 class="text-xl text-xuanor-cream">{{ quiz.intro_title }}</h2>
+          {% endif %}
+          {% if quiz.intro_body %}
+            <p class="mt-3 text-sm leading-7 text-xuanor-muted">{{ quiz.intro_body|linebreaksbr }}</p>
+          {% endif %}
+        </div>
+      {% endif %}
+      <div class="mt-8 flex flex-wrap gap-4">
+        <a href="{% url 'pages:five_element_quiz_take' slug=quiz.slug %}" class="rounded-full border border-xuanor-gold bg-xuanor-gold px-6 py-3 text-sm text-black transition hover:opacity-90">开始测试</a>
+        <a href="/products/" class="rounded-full border border-white/15 px-6 py-3 text-sm text-xuanor-cream transition hover:border-xuanor-gold hover:text-xuanor-gold">先看产品</a>
+      </div>
+    </div>
+
+    <div class="grid gap-4 sm:grid-cols-2">
+      {% for profile in profiles %}
+        <article class="rounded-[1.5rem] border border-white/10 bg-white/[0.02] p-5">
+          <p class="text-xs uppercase tracking-[0.35em] text-xuanor-gold">{{ profile.name }}</p>
+          <h2 class="mt-3 text-2xl text-xuanor-cream">{{ profile.theme_word }}</h2>
+          <p class="mt-4 text-sm leading-7 text-xuanor-muted">{{ profile.short_description|default:profile.emotion_body|truncatechars:78 }}</p>
+        </article>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<section class="border-b border-white/10">
+  <div class="mx-auto max-w-7xl px-6 py-20 lg:px-10">
+    <div class="mb-10">
+      <p class="text-xs uppercase tracking-[0.35em] text-xuanor-gold">Ritual system</p>
+      <h2 class="mt-3 text-3xl text-xuanor-cream md:text-4xl">结果不是标签，而是一条可以被进入的路径。</h2>
+    </div>
+    <div class="grid gap-6 md:grid-cols-3">
+      <article class="rounded-[1.5rem] border border-white/10 p-6">
+        <p class="text-xs uppercase tracking-[0.35em] text-xuanor-gold">01</p>
+        <h3 class="mt-4 text-xl text-xuanor-cream">主符号</h3>
+        <p class="mt-3 text-sm leading-7 text-xuanor-muted">让情绪先被看见，被命名，被佩戴。</p>
+      </article>
+      <article class="rounded-[1.5rem] border border-white/10 p-6">
+        <p class="text-xs uppercase tracking-[0.35em] text-xuanor-gold">02</p>
+        <h3 class="mt-4 text-xl text-xuanor-cream">仪式物</h3>
+        <p class="mt-3 text-sm leading-7 text-xuanor-muted">把抽象感受落到一个可以重复发生的动作里。</p>
+      </article>
+      <article class="rounded-[1.5rem] border border-white/10 p-6">
+        <p class="text-xs uppercase tracking-[0.35em] text-xuanor-gold">03</p>
+        <h3 class="mt-4 text-xl text-xuanor-cream">氛围/承接物</h3>
+        <p class="mt-3 text-sm leading-7 text-xuanor-muted">让个人状态延伸到空间、呼吸、握持与日常节奏。</p>
+      </article>
+    </div>
+  </div>
+</section>
+{% endblock %}

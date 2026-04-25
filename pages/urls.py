@@ -1,6 +1,19 @@
 from django.urls import path
 
-from .views import about, chat, contact, home, privacy_policy, refund_policy, shipping_policy, terms_of_service, upload_test
+from .views import (
+    about,
+    chat,
+    contact,
+    five_element_quiz_landing,
+    five_element_quiz_result,
+    five_element_quiz_take,
+    home,
+    privacy_policy,
+    refund_policy,
+    shipping_policy,
+    terms_of_service,
+    upload_test,
+)
 
 app_name = "pages"
 
@@ -14,4 +27,7 @@ urlpatterns = [
     path("terms-of-service/", terms_of_service, name="terms_of_service"),
     path("chat/", chat, name="chat"),
     path("upload-test/", upload_test, name="upload_test"),
+    path("quiz/<slug:slug>/", five_element_quiz_landing, name="five_element_quiz_landing"),
+    path("quiz/<slug:slug>/start/", five_element_quiz_take, name="five_element_quiz_take"),
+    path("quiz/<slug:slug>/result/<uuid:token>/", five_element_quiz_result, name="five_element_quiz_result"),
 ]

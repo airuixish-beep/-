@@ -85,15 +85,18 @@ ASGI_APPLICATION = "config.asgi.application"
 DB_ENGINE = env("DB_ENGINE", default="sqlite").lower()
 
 if DB_ENGINE == "mysql":
+    db_name = env("DB_NAME", default="xuanor")
+    test_db_name = env("DB_TEST_NAME", default=db_name)
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.mysql",
-            "NAME": env("DB_NAME", default="xuanor"),
+            "NAME": db_name,
             "USER": env("DB_USER", default="xuanor"),
             "PASSWORD": env("DB_PASSWORD", default=""),
             "HOST": env("DB_HOST", default="127.0.0.1"),
             "PORT": env("DB_PORT", default="3306"),
             "OPTIONS": {"charset": "utf8mb4"},
+            "TEST": {"NAME": test_db_name},
         }
     }
 else:

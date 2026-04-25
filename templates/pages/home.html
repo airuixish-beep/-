@@ -15,12 +15,21 @@
         and modern living.
       </p>
       <div class="mt-8 flex flex-wrap gap-4">
-        <a href="/products/" class="rounded-full border border-xuanor-gold bg-xuanor-gold px-6 py-3 text-sm text-black transition hover:opacity-90">
-          进入产品目录
-        </a>
-        <a href="/about/" class="rounded-full border border-white/15 px-6 py-3 text-sm text-xuanor-cream transition hover:border-xuanor-gold hover:text-xuanor-gold">
-          了解品牌
-        </a>
+        {% if five_element_quiz %}
+          <a href="{% url 'pages:five_element_quiz_landing' slug=five_element_quiz.slug %}" class="rounded-full border border-xuanor-gold bg-xuanor-gold px-6 py-3 text-sm text-black transition hover:opacity-90">
+            开始五行测试
+          </a>
+          <a href="/products/" class="rounded-full border border-white/15 px-6 py-3 text-sm text-xuanor-cream transition hover:border-xuanor-gold hover:text-xuanor-gold">
+            进入产品目录
+          </a>
+        {% else %}
+          <a href="/products/" class="rounded-full border border-xuanor-gold bg-xuanor-gold px-6 py-3 text-sm text-black transition hover:opacity-90">
+            进入产品目录
+          </a>
+          <a href="/about/" class="rounded-full border border-white/15 px-6 py-3 text-sm text-xuanor-cream transition hover:border-xuanor-gold hover:text-xuanor-gold">
+            了解品牌
+          </a>
+        {% endif %}
       </div>
     </div>
 
@@ -37,6 +46,33 @@
     </div>
   </div>
 </section>
+
+{% if five_element_quiz %}
+<section class="border-b border-white/10">
+  <div class="mx-auto max-w-7xl px-6 py-20 lg:px-10">
+    <div class="grid gap-10 lg:grid-cols-[1.05fr_0.95fr]">
+      <div class="max-w-2xl">
+        <p class="text-xs uppercase tracking-[0.35em] text-xuanor-gold">Emotion-first ritual test</p>
+        <h2 class="mt-3 text-3xl text-xuanor-cream md:text-4xl">先识别你此刻最需要被怎样对待，再进入适合你的仪式路径。</h2>
+        <p class="mt-6 text-base leading-8 text-xuanor-muted">这不是一个按颜色分类的商品测试，而是一个围绕情绪价值展开的五行人格系统。我们先命名你的情绪，再给出主符号、仪式物与氛围/承接物。</p>
+        <div class="mt-8 flex flex-wrap gap-4">
+          <a href="{% url 'pages:five_element_quiz_landing' slug=five_element_quiz.slug %}" class="rounded-full border border-xuanor-gold bg-xuanor-gold px-6 py-3 text-sm text-black transition hover:opacity-90">开始测试</a>
+          <a href="{% url 'pages:five_element_quiz_landing' slug=five_element_quiz.slug %}" class="rounded-full border border-white/15 px-6 py-3 text-sm text-xuanor-cream transition hover:border-xuanor-gold hover:text-xuanor-gold">查看说明</a>
+        </div>
+      </div>
+      <div class="grid gap-4 sm:grid-cols-2">
+        {% for item in five_element_preview %}
+          <article class="rounded-[1.5rem] border border-white/10 bg-white/[0.02] p-5">
+            <p class="text-xs uppercase tracking-[0.35em] text-xuanor-gold">{{ item.name }}</p>
+            <h3 class="mt-3 text-2xl text-xuanor-cream">{{ item.theme_word }}</h3>
+            <p class="mt-4 text-sm leading-7 text-xuanor-muted">{{ item.summary }}</p>
+          </article>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</section>
+{% endif %}
 
 <section class="border-b border-white/10">
   <div class="mx-auto max-w-7xl px-6 py-20 lg:px-10">

@@ -1,0 +1,88 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ primary_profile.result_title }} | XUANOR{% endblock %}
+{% block meta_description %}{{ primary_profile.short_description|default:primary_profile.emotion_body|truncatechars:140 }}{% endblock %}
+
+{% block content %}
+<section class="border-b border-white/10">
+  <div class="mx-auto max-w-7xl px-6 py-20 lg:px-10">
+    <div class="grid gap-10 lg:grid-cols-[1.05fr_0.95fr]">
+      <div class="max-w-2xl">
+        <p class="text-xs uppercase tracking-[0.35em] text-xuanor-gold">Your current ritual path</p>
+        <h1 class="mt-4 text-4xl leading-tight text-xuanor-cream md:text-5xl lg:text-6xl">{{ primary_profile.result_title }}</h1>
+        <p class="mt-6 text-xl text-xuanor-cream">{{ primary_profile.theme_word }}</p>
+        <div class="mt-8 rounded-[1.75rem] border border-xuanor-gold/20 bg-xuanor-gold/5 p-6">
+          <p class="text-sm uppercase tracking-[0.28em] text-xuanor-gold">先给你的情绪一个名字</p>
+          <h2 class="mt-3 text-2xl text-xuanor-cream">{{ primary_profile.emotion_title }}</h2>
+          <p class="mt-4 text-sm leading-7 text-xuanor-muted">{{ primary_profile.emotion_body|linebreaksbr }}</p>
+        </div>
+        <div class="mt-8 rounded-[1.75rem] border border-white/10 bg-white/[0.02] p-6">
+          <p class="text-sm uppercase tracking-[0.28em] text-xuanor-gold">结果解读</p>
+          <p class="mt-4 text-sm leading-7 text-xuanor-muted">{{ primary_profile.long_description|default:primary_profile.short_description|linebreaksbr }}</p>
+        </div>
+        {% if secondary_profile %}
+          <div class="mt-8 rounded-[1.5rem] border border-white/10 p-6">
+            <p class="text-sm uppercase tracking-[0.28em] text-xuanor-gold">次级倾向</p>
+            <p class="mt-3 text-sm leading-7 text-xuanor-muted">你的状态里也带有一些{{ secondary_profile.name }}的倾向：{{ secondary_profile.theme_word }}。这说明你不仅在寻找{{ primary_profile.theme_word }}，也在靠近{{ secondary_profile.theme_word }}的方式。</p>
+          </div>
+        {% endif %}
+      </div>
+
+      <div class="grid gap-4 self-start">
+        <article class="rounded-[1.5rem] border border-white/10 bg-white/[0.02] p-6">
+          <p class="text-xs uppercase tracking-[0.35em] text-xuanor-gold">01 · 主符号</p>
+          <h2 class="mt-4 text-2xl text-xuanor-cream">{{ primary_profile.primary_symbol_title }}</h2>
+          <p class="mt-3 text-sm leading-7 text-xuanor-muted">{{ primary_profile.primary_symbol_description|linebreaksbr }}</p>
+        </article>
+        <article class="rounded-[1.5rem] border border-white/10 bg-white/[0.02] p-6">
+          <p class="text-xs uppercase tracking-[0.35em] text-xuanor-gold">02 · 仪式物</p>
+          <h2 class="mt-4 text-2xl text-xuanor-cream">{{ primary_profile.ritual_object_title }}</h2>
+          <p class="mt-3 text-sm leading-7 text-xuanor-muted">{{ primary_profile.ritual_object_description|linebreaksbr }}</p>
+        </article>
+        <article class="rounded-[1.5rem] border border-white/10 bg-white/[0.02] p-6">
+          <p class="text-xs uppercase tracking-[0.35em] text-xuanor-gold">03 · 氛围/承接物</p>
+          <h2 class="mt-4 text-2xl text-xuanor-cream">{{ primary_profile.ambient_object_title }}</h2>
+          <p class="mt-3 text-sm leading-7 text-xuanor-muted">{{ primary_profile.ambient_object_description|linebreaksbr }}</p>
+        </article>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="border-b border-white/10">
+  <div class="mx-auto max-w-7xl px-6 py-20 lg:px-10">
+    <div class="mb-10 flex items-end justify-between gap-6">
+      <div>
+        <p class="text-xs uppercase tracking-[0.35em] text-xuanor-gold">Recommended ritual objects</p>
+        <h2 class="mt-3 text-3xl text-xuanor-cream md:text-4xl">适合你此刻的三种承接方式</h2>
+      </div>
+      <a href="/products/" class="hidden text-sm text-xuanor-muted hover:text-xuanor-gold md:block">查看全部</a>
+    </div>
+
+    <div class="grid gap-6 lg:grid-cols-3">
+      {% for item in recommendations %}
+        <div class="space-y-4">
+          <div class="rounded-[1.25rem] border border-white/10 bg-white/[0.02] p-5">
+            <p class="text-xs uppercase tracking-[0.35em] text-xuanor-gold">{{ item.role_label }}</p>
+            {% if item.mapping.blurb %}
+              <p class="mt-3 text-sm leading-7 text-xuanor-muted">{{ item.mapping.blurb }}</p>
+            {% else %}
+              <p class="mt-3 text-sm leading-7 text-xuanor-muted">这件物品不是在替你解决一切，而是在帮你把{{ primary_profile.theme_word }}带进可重复发生的日常里。</p>
+            {% endif %}
+          </div>
+          {% include 'includes/product_card.html' with product=item.product %}
+        </div>
+      {% empty %}
+        <div class="rounded-[1.5rem] border border-white/10 bg-white/[0.02] p-8 text-sm leading-7 text-xuanor-muted lg:col-span-3">
+          当前结果还没有配置推荐商品。你可以先到后台为这个五行结果补充主符号、仪式物与氛围物。
+        </div>
+      {% endfor %}
+    </div>
+
+    <div class="mt-10 flex flex-wrap gap-4">
+      <a href="{% url 'pages:five_element_quiz_take' slug=quiz.slug %}" class="rounded-full border border-xuanor-gold bg-xuanor-gold px-6 py-3 text-sm text-black transition hover:opacity-90">重新测试</a>
+      <a href="/products/" class="rounded-full border border-white/15 px-6 py-3 text-sm text-xuanor-cream transition hover:border-xuanor-gold hover:text-xuanor-gold">进入产品目录</a>
+    </div>
+  </div>
+</section>
+{% endblock %}
