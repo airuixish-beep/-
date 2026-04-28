@@ -315,6 +315,25 @@ class AnalyticsDashboardServiceTests(TestCase):
         self.assertEqual(country_rows["CN"]["order_count"], 2)
         self.assertEqual(country_rows["CN"]["sales_total"], Decimal("295.00"))
 
+    def test_dashboard_uses_current_shipment_per_paid_order(self):
+        filters = parse_dashboard_filters(QueryDict("range=30d&currency=USD"))
+        stale_shipment = self.in_transit_order.shipments.first()
+        stale_shipment.status = Shipment.Status.IN_TRANSIT
+        stale_shipment.save(update_fields=["status", "updated_at"])
+        Shipment.objects.create(
+            order=self.in_transit_order,
+            provider=Shipment.Provider.MANUAL,
+            status=Shipment.Status.DELIVERED,
+        )
+
+        context = build_dashboard_context(filters)
+
+        self.assertEqual(context["kpis"]["shipping_in_progress_count"], 0)
+        self.assertEqual(context["kpis"]["delivered_order_count"], 2)
+        shipping_rows = {row["value"]: row for row in context["shipping_summary"]["rows"]}
+        self.assertEqual(shipping_rows[Shipment.Status.DELIVERED]["count"], 2)
+        self.assertEqual(shipping_rows[Shipment.Status.IN_TRANSIT]["count"], 0)
+
     def test_dashboard_uses_distinct_time_semantics_for_orders_payments_and_shipping(self):
         out_of_range_day = timezone.localdate() - timedelta(days=45)
         in_range_day = timezone.localdate() - timedelta(days=2)

@@ -1,7 +1,8 @@
 from decimal import Decimal
 from unittest.mock import patch
 
-from django.test import TestCase, override_settings
+from django.contrib.admin.sites import AdminSite
+from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
 
 from orders.models import Order
@@ -9,6 +10,7 @@ from products.models import Product
 
 from transactions.models import LedgerEntry, RiskAssessment, Transaction, TransactionEvent
 
+from .admin import PaymentAdmin
 from .models import Payment, PaymentEvent
 from .services import (
     PaymentWebhookProcessingError,
@@ -17,6 +19,69 @@ from .services import (
     StripeService,
     create_payment_redirect,
 )
+
+
+class PaymentAdminSyncTests(TestCase):
+    def setUp(self):
+        self.factory = RequestFactory()
+        self.site = AdminSite()
+        self.admin = PaymentAdmin(Payment, self.site)
+        self.product = Product.objects.create(
+            name="Admin Product",
+            slug="admin-product",
+            sku="SKU-ADMIN",
+            price=Decimal("50.00"),
+            currency=Product.Currency.USD,
+            stock_quantity=5,
+            is_active=True,
+            is_purchasable=True,
+        )
+        self.order = Order.objects.create(
+            customer_name="Admin",
+            customer_email="admin@example.com",
+            shipping_country="US",
+            shipping_city="Austin",
+            shipping_postal_code="73301",
+            shipping_address_line1="1 Admin St",
+            shipping_amount=Decimal("10.00"),
+            currency=Product.Currency.USD,
+            subtotal_amount=Decimal("50.00"),
+            total_amount=Decimal("60.00"),
+        )
+        self.order.items.create(
+            product=self.product,
+            product_name_snapshot=self.product.name,
+            sku_snapshot=self.product.sku,
+            unit_price=self.product.price,
+            quantity=1,
+        )
+        self.payment = Payment.objects.create(
+            order=self.order,
+            provider=Payment.Provider.STRIPE,
+            amount=Decimal("60.00"),
+            currency="USD",
+        )
+
+    def test_payment_admin_syncs_paid_state_to_order_and_transaction(self):
+        request = self.factory.post("/admin/payments/payment/1/change/")
+        paid_at = self.payment.created_at or self.order.created_at
+        self.payment.status = Payment.Status.PAID
+        self.payment.paid_at = paid_at
+        self.payment.external_payment_id = "pi_admin_sync"
+
+        self.admin.save_model(request, self.payment, form=None, change=True)
+
+        self.payment.refresh_from_db()
+        self.order.refresh_from_db()
+        transaction_obj = self.payment.transaction
+        transaction_obj.refresh_from_db()
+        self.product.refresh_from_db()
+
+        self.assertEqual(self.order.payment_status, Order.PaymentStatus.PAID)
+        self.assertEqual(transaction_obj.status, Transaction.Status.PAID)
+        self.assertEqual(transaction_obj.paid_at, self.payment.paid_at)
+        self.assertEqual(LedgerEntry.objects.filter(transaction=transaction_obj, entry_type="payment_capture").count(), 2)
+        self.assertEqual(self.product.stock_quantity, 4)
 
 
 class PaymentRedirectObservationTests(TestCase):

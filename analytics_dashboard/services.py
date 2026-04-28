@@ -3,7 +3,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 from django.conf import settings
-from django.db.models import Count, Max, Q, Sum
+from django.db.models import Count, Max, OuterRef, Q, Subquery, Sum
 from django.db.models.functions import TruncDate
 from django.utils import timezone
 
@@ -126,15 +126,15 @@ def get_kpis(filters):
     paid_transactions = _paid_transactions(filters)
     succeeded_refunds = _succeeded_refunds(filters)
     net_revenue = _net_revenue(filters)
-    shipments = _shipments_for_paid_orders(filters)
+    current_shipments = _current_shipments_for_paid_orders(filters)
 
     sales_total = paid_transactions.aggregate(total=Sum("amount"))["total"] or ZERO_DECIMAL
     refund_total = succeeded_refunds.aggregate(total=Sum("amount"))["total"] or ZERO_DECIMAL
     paid_order_count = paid_orders.count()
-    shipping_in_progress_count = shipments.filter(
+    shipping_in_progress_count = current_shipments.filter(
         status__in=[Shipment.Status.LABEL_PURCHASED, Shipment.Status.SHIPPED, Shipment.Status.IN_TRANSIT]
-    ).values("order_id").distinct().count()
-    delivered_order_count = shipments.filter(status=Shipment.Status.DELIVERED).values("order_id").distinct().count()
+    ).count()
+    delivered_order_count = current_shipments.filter(status=Shipment.Status.DELIVERED).count()
 
     return {
         "order_count": orders.count(),
@@ -269,12 +269,14 @@ def get_financial_summary(filters):
 
 
 def get_shipping_summary(filters):
-    shipments = _shipments_for_paid_orders(filters)
-    rows = _status_rows(shipments, "status", Shipment.Status.choices)
+    current_shipments = _current_shipments_for_paid_orders(filters)
+    rows = _status_rows(current_shipments, "status", Shipment.Status.choices)
 
     return {
         "rows": rows,
-        "exception_shipments": list(shipments.filter(status=Shipment.Status.EXCEPTION).select_related("order").order_by("-updated_at", "-created_at")[:5]),
+        "exception_shipments": list(
+            current_shipments.filter(status=Shipment.Status.EXCEPTION).select_related("order").order_by("-updated_at", "-created_at")[:5]
+        ),
     }
 
 
@@ -415,6 +417,16 @@ def _paid_transactions(filters):
     )
 
 
+def _current_shipments_for_paid_orders(filters):
+    paid_orders = _paid_orders(filters)
+    latest_shipment_ids = (
+        Shipment.objects.filter(order_id=OuterRef("pk"))
+        .order_by("-created_at", "-id")
+        .values("id")[:1]
+    )
+    return Shipment.objects.filter(id__in=Subquery(paid_orders.annotate(latest_shipment_id=Subquery(latest_shipment_ids)).values("latest_shipment_id"))).select_related("order")
+
+
 def _succeeded_refunds(filters):
     return _filter_by_date(
         Refund.objects.filter(currency=filters.currency, status=Refund.Status.SUCCEEDED),
@@ -437,10 +449,6 @@ def _net_revenue(filters):
     refund_total = ledger_entries.filter(account__code="refunds", direction=LedgerEntry.Direction.DEBIT).aggregate(total=Sum("amount"))["total"] or ZERO_DECIMAL
     fee_total = ledger_entries.filter(account__code="payment_fees", direction=LedgerEntry.Direction.DEBIT).aggregate(total=Sum("amount"))["total"] or ZERO_DECIMAL
     return gross_total - refund_total - fee_total
-
-
-def _shipments_for_paid_orders(filters):
-    return Shipment.objects.filter(order__in=_paid_orders(filters))
 
 
 def _filter_by_date(queryset, field_name, filters):
