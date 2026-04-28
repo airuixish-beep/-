@@ -5,7 +5,17 @@ from .models import Payment, PaymentEvent
 
 @admin.register(Payment)
 class PaymentAdmin(admin.ModelAdmin):
-    list_display = ("order", "provider", "status", "amount", "currency", "external_payment_id", "paid_at", "created_at")
+    list_display = (
+        "order",
+        "transaction",
+        "provider",
+        "status",
+        "amount",
+        "currency",
+        "external_payment_id",
+        "paid_at",
+        "created_at",
+    )
     list_filter = ("provider", "status", "currency", "created_at")
     search_fields = ("order__order_number", "external_payment_id", "checkout_token_or_session_id")
     readonly_fields = ("raw_payload", "created_at", "updated_at")

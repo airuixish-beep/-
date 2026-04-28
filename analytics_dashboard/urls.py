@@ -7,4 +7,5 @@ app_name = "analytics_dashboard"
 
 urlpatterns = [
     path("", admin.site.admin_view(views.dashboard_view), name="index"),
+    path("quiz/", admin.site.admin_view(views.quiz_dashboard_view), name="quiz"),
 ]

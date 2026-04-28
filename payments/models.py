@@ -14,6 +14,14 @@ class Payment(models.Model):
         CANCELLED = "cancelled", "已取消"
 
     order = models.ForeignKey("orders.Order", verbose_name="所属订单", on_delete=models.CASCADE, related_name="payments")
+    transaction = models.ForeignKey(
+        "transactions.Transaction",
+        verbose_name="所属交易",
+        on_delete=models.SET_NULL,
+        related_name="payment_attempts",
+        null=True,
+        blank=True,
+    )
     provider = models.CharField("支付渠道", max_length=20, choices=Provider.choices)
     status = models.CharField("支付状态", max_length=20, choices=Status.choices, default=Status.PENDING)
     amount = models.DecimalField("支付金额", max_digits=10, decimal_places=2)

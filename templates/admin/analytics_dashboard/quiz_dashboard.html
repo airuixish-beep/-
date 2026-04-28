@@ -1,0 +1,294 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+  .dashboard-page {
+    display: grid;
+    gap: 20px;
+  }
+  .dashboard-toolbar form {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    align-items: end;
+  }
+  .dashboard-toolbar .field-group {
+    display: grid;
+    gap: 6px;
+  }
+  .dashboard-toolbar label { font-weight: 600; }
+  .dashboard-toolbar .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .dashboard-toolbar .actions .button, .dashboard-toolbar .actions button { margin: 0; }
+  .kpi-grid, .panel-grid { display: grid; gap: 16px; }
+  .kpi-grid { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+  .panel-grid { grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); }
+  .metric-card { padding: 18px; }
+  .metric-card .label { color: #666; font-size: 12px; margin-bottom: 8px; }
+  .metric-card .value { font-size: 26px; font-weight: 700; line-height: 1.2; }
+  .metric-card .hint { color: #666; margin-top: 8px; font-size: 12px; }
+  .simple-table { width: 100%; border-collapse: collapse; }
+  .simple-table th, .simple-table td { padding: 8px 10px; border-bottom: 1px solid #eee; vertical-align: top; }
+  .simple-table th { text-align: left; color: #666; font-size: 12px; white-space: nowrap; }
+  .bar-track { width: 100%; min-width: 120px; height: 8px; background: #f1f1f1; border-radius: 999px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 999px; background: #417690; }
+  .muted { color: #666; }
+  .compact-list { margin: 0; padding-left: 18px; }
+  .summary-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+  .summary-card { padding: 18px; border: 1px solid #d9e6ef; border-radius: 8px; background: #fff; }
+  .summary-card h3 { margin-top: 0; }
+  .panel-header { display: flex; justify-content: space-between; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .panel-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .inline-links { display: flex; gap: 12px; flex-wrap: wrap; }
+  .inline-links a { font-size: 12px; }
+</style>
+{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">后台首页</a>
+  &rsaquo; 五行测试统计
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-page">
+  <div class="module dashboard-toolbar">
+    <h2>五行测试提交统计</h2>
+    <p class="muted">当前范围：{{ filters.label }} / {{ filters.currency_label }}。查看提交总量、结果分布、留资率与最近提交记录。</p>
+    <form method="get">
+      <div class="field-group">
+        <label for="id_range">时间范围</label>
+        <select name="range" id="id_range">
+          {% for value, label in range_options %}
+          <option value="{{ value }}" {% if filters.range_key == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field-group">
+        <label for="id_start_date">开始日期</label>
+        <input type="date" name="start_date" id="id_start_date" value="{{ filters.start_date|date:'Y-m-d' }}">
+      </div>
+      <div class="field-group">
+        <label for="id_end_date">结束日期</label>
+        <input type="date" name="end_date" id="id_end_date" value="{{ filters.end_date|date:'Y-m-d' }}">
+      </div>
+      <div class="field-group">
+        <label for="id_currency">币种</label>
+        <select name="currency" id="id_currency">
+          {% for value, label in currency_options %}
+          <option value="{{ value }}" {% if filters.currency == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="actions">
+        <button type="submit" class="button default">更新统计</button>
+        <a href="{% url 'analytics_dashboard:quiz' %}" class="button">重置筛选</a>
+      </div>
+    </form>
+  </div>
+
+  <div class="kpi-grid">
+    <div class="module metric-card">
+      <div class="label">测试提交数</div>
+      <div class="value">{{ quiz_summary.total_submissions }}</div>
+      <div class="hint">{{ semantics.quiz_submissions }}</div>
+      <div class="inline-links"><a href="{{ submission_all_url }}">查看对应提交</a></div>
+    </div>
+    <div class="module metric-card">
+      <div class="label">留资数</div>
+      <div class="value">{{ quiz_summary.lead_count }}</div>
+      <div class="hint">{{ semantics.quiz_leads }}</div>
+      <div class="inline-links"><a href="{{ submission_has_email_url }}">查看已留资</a></div>
+    </div>
+    <div class="module metric-card">
+      <div class="label">留资率</div>
+      <div class="value">{{ quiz_summary.lead_rate|floatformat:1 }}%</div>
+      <div class="hint">留资邮箱 / 测试提交数</div>
+      <div class="inline-links"><a href="{{ submission_no_email_url }}">查看未留资</a></div>
+    </div>
+    <div class="module metric-card">
+      <div class="label">主导结果数</div>
+      <div class="value">{{ quiz_summary.result_counts|length }}</div>
+      <div class="hint">{{ semantics.quiz_results }}</div>
+      <div class="inline-links"><a href="{{ submission_changelist_url }}">进入提交后台</a></div>
+    </div>
+  </div>
+
+  <div class="panel-grid">
+    <div class="module">
+      <div class="panel-header">
+        <div>
+          <h2>主导结果分布</h2>
+          <p class="muted">按提交记录的主导五行统计。</p>
+        </div>
+        <div class="panel-actions">
+          <a class="button" href="{{ submission_changelist_url }}">提交后台</a>
+        </div>
+      </div>
+      <table class="simple-table">
+        <thead>
+          <tr>
+            <th>结果</th>
+            <th>数量</th>
+            <th>占比</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for name, count in quiz_summary.result_counts.items %}
+          <tr>
+            <td>{{ name }}</td>
+            <td>{{ count }}</td>
+            <td>
+              <div class="bar-track"><div class="bar-fill" style="width: {% widthratio count quiz_summary.total_submissions 100 %}%"></div></div>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="3" class="muted">当前时间范围暂无提交记录。</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="module">
+      <h2>留资邮箱 Top</h2>
+      <table class="simple-table">
+        <thead>
+          <tr>
+            <th>邮箱</th>
+            <th>次数</th>
+            <th>最近提交</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in quiz_summary.lead_rows %}
+          <tr>
+            <td>{{ row.respondent_email }}</td>
+            <td>{{ row.count }}</td>
+            <td>{{ row.last_created_at|date:"Y-m-d H:i" }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="3" class="muted">当前时间范围暂无留资邮箱。</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="panel-grid">
+    <div class="module">
+      <div class="panel-header">
+        <div>
+          <h2>最近提交记录</h2>
+        </div>
+        <div class="panel-actions">
+          <a class="button" href="{{ submission_all_url }}">查看全部</a>
+        </div>
+      </div>
+      <table class="simple-table">
+        <thead>
+          <tr>
+            <th>时间</th>
+            <th>主结果</th>
+            <th>次级结果</th>
+            <th>留资</th>
+            <th>来源</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for submission in quiz_summary.recent_submissions %}
+          <tr>
+            <td>{{ submission.created_at|date:"Y-m-d H:i" }}</td>
+            <td>{{ submission.primary_profile.name|default:"-" }}</td>
+            <td>{{ submission.secondary_profile.name|default:"-" }}</td>
+            <td>{{ submission.respondent_email|default:"-" }}</td>
+            <td>
+              {% if submission.utm_source or submission.utm_medium or submission.utm_campaign %}
+                {{ submission.utm_source|default:"-" }} / {{ submission.utm_medium|default:"-" }} / {{ submission.utm_campaign|default:"-" }}
+              {% else %}
+                直接访问
+              {% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="5" class="muted">当前时间范围暂无提交。</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="module">
+      <h2>来源归因</h2>
+      <div class="summary-grid">
+        <div class="summary-card">
+          <h3>UTM Source</h3>
+          <table class="simple-table">
+            <tbody>
+              {% for row in quiz_attribution.sources %}
+              <tr>
+                <td>{{ row.label }}</td>
+                <td>{{ row.count }}</td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="2" class="muted">当前时间范围暂无来源数据。</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div class="summary-card">
+          <h3>UTM Medium</h3>
+          <table class="simple-table">
+            <tbody>
+              {% for row in quiz_attribution.mediums %}
+              <tr>
+                <td>{{ row.label }}</td>
+                <td>{{ row.count }}</td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="2" class="muted">当前时间范围暂无 medium 数据。</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div class="summary-card">
+          <h3>UTM Campaign</h3>
+          <table class="simple-table">
+            <tbody>
+              {% for row in quiz_attribution.campaigns %}
+              <tr>
+                <td>{{ row.label }}</td>
+                <td>{{ row.count }}</td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="2" class="muted">当前时间范围暂无 campaign 数据。</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <p class="muted">{{ semantics.quiz_attribution }}</p>
+    </div>
+  </div>
+
+  <div class="panel-grid">
+    <div class="module">
+      <h2>数据说明</h2>
+      <div class="summary-grid">
+        <div class="summary-card">
+          <h3>提交时间</h3>
+          <p class="muted">{{ semantics.quiz_submissions }}</p>
+        </div>
+        <div class="summary-card">
+          <h3>结果口径</h3>
+          <p class="muted">{{ semantics.quiz_results }}</p>
+        </div>
+        <div class="summary-card">
+          <h3>留资口径</h3>
+          <p class="muted">{{ semantics.quiz_leads }}</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

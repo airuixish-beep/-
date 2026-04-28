@@ -5,6 +5,8 @@ from django.views.decorators.csrf import csrf_exempt
 from orders.models import Order
 
 from .models import Payment
+from transactions.services import cancel_payment_attempt, mark_payment_failed
+
 from .services import (
     PayPalService,
     PaymentWebhookProcessingError,
@@ -14,9 +16,12 @@ from .services import (
 
 
 def _mark_failed_payment(order, payment):
-    payment.status = Payment.Status.FAILED
-    payment.save(update_fields=["status", "updated_at"])
-    order.mark_payment_failed()
+    mark_payment_failed(
+        payment,
+        source="payments.success",
+        idempotency_key=f"success-failed:{payment.id}",
+        payload={"order_id": order.id},
+    )
 
 
 def _get_payment_attempt(order, request):
@@ -73,9 +78,12 @@ def cancel(request, public_token):
     order = get_object_or_404(Order, public_token=public_token)
     payment = _get_payment_attempt(order, request)
     if payment and payment.status == Payment.Status.REQUIRES_ACTION:
-        payment.status = Payment.Status.CANCELLED
-        payment.save(update_fields=["status", "updated_at"])
-        order.mark_payment_cancelled()
+        cancel_payment_attempt(
+            payment,
+            source="payments.cancel",
+            idempotency_key=f"cancel:{payment.id}",
+            payload={"order_id": order.id},
+        )
     return render(request, "payments/cancel.html", {"order": order, "payment": payment})
 
 

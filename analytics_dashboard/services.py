@@ -3,14 +3,16 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 from django.conf import settings
-from django.db.models import Count, Q, Sum
+from django.db.models import Count, Max, Q, Sum
 from django.db.models.functions import TruncDate
 from django.utils import timezone
 
 from orders.models import Order, OrderItem
+from pages.models import FiveElementProfile, FiveElementQuiz, FiveElementSubmission
 from payments.models import Payment
 from products.models import Product
 from shipping.models import Shipment
+from transactions.models import LedgerEntry, Refund, Transaction
 
 ZERO_DECIMAL = Decimal("0.00")
 LOW_STOCK_THRESHOLD = 5
@@ -80,19 +82,40 @@ def parse_dashboard_filters(params):
 
 
 def build_dashboard_context(filters):
+    quiz_summary = get_quiz_summary(filters)
     return {
         "kpis": get_kpis(filters),
         "order_trends": get_order_trends(filters),
         "status_breakdowns": get_status_breakdowns(filters),
         "payment_summary": get_payment_summary(filters),
+        "financial_summary": get_financial_summary(filters),
         "shipping_summary": get_shipping_summary(filters),
         "product_summary": get_product_leaderboards(filters),
         "geo_summary": get_geo_summary(filters),
+        "quiz_summary": quiz_summary,
         "semantics": {
             "order_created": "按订单创建时间统计",
             "paid_orders": "按订单支付完成时间统计",
             "payments": "按支付记录创建时间统计",
+            "transactions": "按交易支付完成时间或退款创建时间统计",
+            "ledger": "按账务分录创建时间统计净收入与资金流",
             "shipping": "基于所选范围内已支付订单展示当前发货状态",
+            "quiz_submissions": "按测试提交时间统计",
+            "quiz_results": "按主导结果统计",
+            "quiz_leads": "按留资邮箱统计",
+        },
+    }
+
+
+def build_quiz_dashboard_context(filters):
+    return {
+        "quiz_summary": get_quiz_summary(filters),
+        "quiz_attribution": get_quiz_attribution_summary(filters),
+        "semantics": {
+            "quiz_submissions": "按测试提交时间统计",
+            "quiz_results": "按主导结果统计",
+            "quiz_leads": "按留资邮箱统计",
+            "quiz_attribution": "按提交记录携带的 UTM 来源统计",
         },
     }
 
@@ -100,9 +123,13 @@ def build_dashboard_context(filters):
 def get_kpis(filters):
     orders = _filter_by_date(Order.objects.filter(currency=filters.currency), "created_at", filters)
     paid_orders = _paid_orders(filters)
+    paid_transactions = _paid_transactions(filters)
+    succeeded_refunds = _succeeded_refunds(filters)
+    net_revenue = _net_revenue(filters)
     shipments = _shipments_for_paid_orders(filters)
 
-    sales_total = paid_orders.aggregate(total=Sum("total_amount"))["total"] or ZERO_DECIMAL
+    sales_total = paid_transactions.aggregate(total=Sum("amount"))["total"] or ZERO_DECIMAL
+    refund_total = succeeded_refunds.aggregate(total=Sum("amount"))["total"] or ZERO_DECIMAL
     paid_order_count = paid_orders.count()
     shipping_in_progress_count = shipments.filter(
         status__in=[Shipment.Status.LABEL_PURCHASED, Shipment.Status.SHIPPED, Shipment.Status.IN_TRANSIT]
@@ -112,8 +139,12 @@ def get_kpis(filters):
     return {
         "order_count": orders.count(),
         "paid_order_count": paid_order_count,
-        "sales_total": sales_total,
+        "gmv": sales_total,
+        "refund_total": refund_total,
+        "net_revenue": net_revenue,
         "average_order_value": (sales_total / paid_order_count) if paid_order_count else ZERO_DECIMAL,
+        "payment_conversion_rate": round((paid_order_count / orders.count()) * 100, 1) if orders.count() else 0,
+        "refund_rate": round((refund_total / sales_total) * 100, 1) if sales_total else 0,
         "shipping_in_progress_count": shipping_in_progress_count,
         "delivered_order_count": delivered_order_count,
     }
@@ -217,6 +248,26 @@ def get_payment_summary(filters):
     }
 
 
+def get_financial_summary(filters):
+    paid_transactions = _paid_transactions(filters)
+    refunds = _succeeded_refunds(filters)
+    ledger_entries = _ledger_entries(filters)
+
+    refund_total = refunds.aggregate(total=Sum("amount"))["total"] or ZERO_DECIMAL
+    fee_total = ledger_entries.filter(account__code="payment_fees", direction=LedgerEntry.Direction.DEBIT).aggregate(total=Sum("amount"))["total"] or ZERO_DECIMAL
+    gross_total = paid_transactions.aggregate(total=Sum("amount"))["total"] or ZERO_DECIMAL
+    net_revenue = _net_revenue(filters)
+
+    return {
+        "gross_total": gross_total,
+        "refund_total": refund_total,
+        "fee_total": fee_total,
+        "net_revenue": net_revenue,
+        "refund_count": refunds.count(),
+        "paid_transaction_count": paid_transactions.count(),
+    }
+
+
 def get_shipping_summary(filters):
     shipments = _shipments_for_paid_orders(filters)
     rows = _status_rows(shipments, "status", Shipment.Status.choices)
@@ -256,6 +307,43 @@ def get_product_leaderboards(filters):
     }
 
 
+def get_quiz_summary(filters):
+    submissions = _quiz_submissions(filters)
+    total_submissions = submissions.count()
+    lead_count = submissions.exclude(respondent_email="").count()
+    result_rows = list(
+        submissions.exclude(primary_profile__isnull=True)
+        .values("primary_profile__name", "primary_profile__sort_order", "primary_profile__id")
+        .annotate(count=Count("id"))
+        .order_by("-count", "primary_profile__sort_order", "primary_profile__id")
+    )
+    result_counts = {row["primary_profile__name"]: row["count"] for row in result_rows}
+    lead_rows = list(
+        submissions.exclude(respondent_email="")
+        .values("respondent_email")
+        .annotate(count=Count("id"), last_created_at=Max("created_at"))
+        .order_by("-last_created_at", "respondent_email")[:10]
+    )
+    return {
+        "quiz": submissions.first().quiz if submissions else FiveElementQuiz.objects.filter(is_active=True).order_by("sort_order", "id").first(),
+        "total_submissions": total_submissions,
+        "lead_count": lead_count,
+        "lead_rate": round((lead_count / total_submissions) * 100, 1) if total_submissions else 0,
+        "result_counts": result_counts,
+        "lead_rows": lead_rows,
+        "recent_submissions": list(submissions.select_related("primary_profile", "secondary_profile").order_by("-created_at")[:10]),
+    }
+
+
+def get_quiz_attribution_summary(filters):
+    submissions = _quiz_submissions(filters)
+    return {
+        "sources": _quiz_attribution_rows(submissions, "utm_source", default_label="直接访问"),
+        "mediums": _quiz_attribution_rows(submissions, "utm_medium", default_label="未标记 medium"),
+        "campaigns": _quiz_attribution_rows(submissions, "utm_campaign", default_label="未标记 campaign"),
+    }
+
+
 def get_geo_summary(filters):
     paid_orders = _paid_orders(filters)
 
@@ -292,6 +380,13 @@ def get_marketing_placeholders():
     ]
 
 
+def _quiz_submissions(filters):
+    quiz = FiveElementQuiz.objects.filter(is_active=True).order_by("sort_order", "id").first()
+    if not quiz:
+        return FiveElementSubmission.objects.none()
+    return _filter_by_date(quiz.submissions.select_related("quiz", "primary_profile", "secondary_profile"), "created_at", filters)
+
+
 def _paid_orders(filters):
     return _filter_by_date(
         Order.objects.filter(
@@ -302,6 +397,46 @@ def _paid_orders(filters):
         "paid_at",
         filters,
     )
+
+
+def _paid_transactions(filters):
+    return _filter_by_date(
+        Transaction.objects.filter(
+            currency=filters.currency,
+            status__in=[
+                Transaction.Status.PAID,
+                Transaction.Status.PARTIALLY_REFUNDED,
+                Transaction.Status.REFUNDED,
+            ],
+            paid_at__isnull=False,
+        ),
+        "paid_at",
+        filters,
+    )
+
+
+def _succeeded_refunds(filters):
+    return _filter_by_date(
+        Refund.objects.filter(currency=filters.currency, status=Refund.Status.SUCCEEDED),
+        "created_at",
+        filters,
+    )
+
+
+def _ledger_entries(filters):
+    return _filter_by_date(
+        LedgerEntry.objects.filter(currency=filters.currency),
+        "created_at",
+        filters,
+    )
+
+
+def _net_revenue(filters):
+    ledger_entries = _ledger_entries(filters)
+    gross_total = ledger_entries.filter(account__code="customer_receipts", direction=LedgerEntry.Direction.CREDIT).aggregate(total=Sum("amount"))["total"] or ZERO_DECIMAL
+    refund_total = ledger_entries.filter(account__code="refunds", direction=LedgerEntry.Direction.DEBIT).aggregate(total=Sum("amount"))["total"] or ZERO_DECIMAL
+    fee_total = ledger_entries.filter(account__code="payment_fees", direction=LedgerEntry.Direction.DEBIT).aggregate(total=Sum("amount"))["total"] or ZERO_DECIMAL
+    return gross_total - refund_total - fee_total
 
 
 def _shipments_for_paid_orders(filters):
@@ -338,6 +473,21 @@ def _status_rows(queryset, field_name, choices):
         )
 
     return rows
+
+
+def _quiz_attribution_rows(submissions, field_name, *, default_label):
+    rows = []
+    for row in submissions.values(field_name).annotate(count=Count("id")):
+        value = row[field_name] or ""
+        rows.append(
+            {
+                "value": value,
+                "label": value or default_label,
+                "count": row["count"],
+            }
+        )
+    rows.sort(key=lambda row: (-row["count"], row["value"] == "", row["label"]))
+    return rows[:10]
 
 
 def _parse_date(value):

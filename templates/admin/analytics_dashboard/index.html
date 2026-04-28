@@ -198,14 +198,29 @@
       <div class="hint">{{ semantics.paid_orders }}</div>
     </div>
     <div class="module metric-card">
-      <div class="label">支付订单销售额</div>
-      <div class="value">{{ filters.currency }} {{ kpis.sales_total|floatformat:2 }}</div>
-      <div class="hint">仅统计已支付订单，{{ semantics.paid_orders }}</div>
+      <div class="label">GMV</div>
+      <div class="value">{{ filters.currency }} {{ kpis.gmv|floatformat:2 }}</div>
+      <div class="hint">仅统计已支付交易，{{ semantics.transactions }}</div>
+    </div>
+    <div class="module metric-card">
+      <div class="label">支付转化率</div>
+      <div class="value">{{ kpis.payment_conversion_rate|floatformat:1 }}%</div>
+      <div class="hint">已支付订单 / 订单总数</div>
+    </div>
+    <div class="module metric-card">
+      <div class="label">退款率</div>
+      <div class="value">{{ kpis.refund_rate|floatformat:1 }}%</div>
+      <div class="hint">退款金额 / GMV</div>
+    </div>
+    <div class="module metric-card">
+      <div class="label">净收入</div>
+      <div class="value">{{ filters.currency }} {{ kpis.net_revenue|floatformat:2 }}</div>
+      <div class="hint">GMV - 退款 - 手续费（{{ semantics.ledger }}）</div>
     </div>
     <div class="module metric-card">
       <div class="label">平均客单价</div>
       <div class="value">{{ filters.currency }} {{ kpis.average_order_value|floatformat:2 }}</div>
-      <div class="hint">销售额 / 已支付订单数（{{ semantics.paid_orders }}）</div>
+      <div class="hint">GMV / 已支付订单数（{{ semantics.transactions }}）</div>
     </div>
     <div class="module metric-card">
       <div class="label">发货中订单</div>
@@ -293,6 +308,21 @@
   </div>
 
   <div class="panel-grid">
+    <div class="module">
+      <h2>财务摘要</h2>
+      <p class="muted">{{ semantics.transactions }}；净收入按 {{ semantics.ledger }} 统计。</p>
+      <table class="simple-table">
+        <tbody>
+          <tr><th>GMV</th><td>{{ filters.currency }} {{ financial_summary.gross_total|floatformat:2 }}</td></tr>
+          <tr><th>退款金额</th><td>{{ filters.currency }} {{ financial_summary.refund_total|floatformat:2 }}</td></tr>
+          <tr><th>手续费</th><td>{{ filters.currency }} {{ financial_summary.fee_total|floatformat:2 }}</td></tr>
+          <tr><th>净收入</th><td>{{ filters.currency }} {{ financial_summary.net_revenue|floatformat:2 }}</td></tr>
+          <tr><th>退款笔数</th><td>{{ financial_summary.refund_count }}</td></tr>
+          <tr><th>已支付交易数</th><td>{{ financial_summary.paid_transaction_count }}</td></tr>
+        </tbody>
+      </table>
+    </div>
+
     <div class="module">
       <h2>支付记录分析</h2>
       <p class="muted">{{ semantics.payments }}，用于观察支付渠道与失败记录，不作为经营收入主口径。</p>

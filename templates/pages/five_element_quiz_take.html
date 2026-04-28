@@ -3,8 +3,84 @@
 {% block title %}开始测试 | {{ quiz.title }}{% endblock %}
 {% block meta_description %}通过一组问题识别你此刻更需要的五行仪式路径。{% endblock %}
 
+{% block extra_head %}
+<script>
+  document.addEventListener('alpine:init', () => {
+    Alpine.data('quizStepper', (questionCount) => ({
+      currentStep: 0,
+      questionCount,
+      stepErrors: {},
+      init() {
+        const errorStep = this.findFirstErrorStep();
+        if (errorStep !== null) {
+          this.currentStep = errorStep;
+        }
+      },
+      get totalSteps() {
+        return this.questionCount + 1;
+      },
+      get progressPercent() {
+        return Math.max(8, Math.round(((this.currentStep + 1) / this.totalSteps) * 100));
+      },
+      next() {
+        if (!this.validateCurrentStep()) {
+          return;
+        }
+        if (this.currentStep < this.totalSteps - 1) {
+          this.currentStep += 1;
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      },
+      previous() {
+        if (this.currentStep > 0) {
+          this.currentStep -= 1;
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      },
+      goToContactStep() {
+        if (!this.validateCurrentStep()) {
+          return;
+        }
+        this.currentStep = this.questionCount;
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      },
+      validateCurrentStep() {
+        const section = document.querySelector(`[data-question-step="${this.currentStep}"]`);
+        if (!section) {
+          return true;
+        }
+        const checkedOption = section.querySelector('input[type="radio"]:checked');
+        if (checkedOption) {
+          this.clearStepError(this.currentStep);
+          return true;
+        }
+        this.stepErrors[this.currentStep] = true;
+        return false;
+      },
+      clearStepError(step) {
+        if (this.stepErrors[step]) {
+          delete this.stepErrors[step];
+        }
+      },
+      findFirstErrorStep() {
+        const sections = document.querySelectorAll('[data-question-step]');
+        for (const section of sections) {
+          if (section.querySelector('[data-field-errors]')) {
+            return Number(section.dataset.questionStep);
+          }
+        }
+        if (document.querySelector('[data-contact-errors]')) {
+          return this.questionCount;
+        }
+        return null;
+      },
+    }))
+  })
+</script>
+{% endblock %}
+
 {% block content %}
-<section class="border-b border-white/10">
+<section class="border-b border-white/10" x-data="quizStepper({{ question_count }})">
   <div class="mx-auto max-w-5xl px-6 py-20 lg:px-10">
     <div class="max-w-3xl">
       <p class="text-xs uppercase tracking-[0.35em] text-xuanor-gold">开始测试</p>
@@ -12,42 +88,46 @@
       <p class="mt-6 text-base leading-8 text-xuanor-muted">请按照你当下最真实的感受作答。这里没有标准答案，我们更关心你现在更需要哪一种情绪承接。</p>
     </div>
 
-    <form method="post" class="mt-12 space-y-8">
+    <div class="mt-10 rounded-[1.75rem] border border-white/10 bg-white/[0.02] p-6">
+      <div class="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <p class="text-xs uppercase tracking-[0.35em] text-xuanor-gold">当前进度</p>
+          <p class="mt-2 text-sm leading-7 text-xuanor-muted">
+            <span x-show="currentStep < questionCount">第 <span x-text="currentStep + 1"></span> / {{ question_count }} 题</span>
+            <span x-show="currentStep >= questionCount">最后一步 · 留下称呼与邮箱（可选）</span>
+          </p>
+        </div>
+        <p class="text-xs uppercase tracking-[0.28em] text-xuanor-muted">预计 {{ quiz.estimated_minutes }} 分钟</p>
+      </div>
+      <div class="mt-5 h-2 overflow-hidden rounded-full bg-white/10">
+        <div class="h-full rounded-full bg-xuanor-gold transition-all duration-300" :style="`width: ${progressPercent}%`"></div>
+      </div>
+    </div>
+
+    <form method="post" class="mt-12">
       {% csrf_token %}
 
       {% if form.non_field_errors %}
-        <div class="rounded-[1.5rem] border border-red-400/30 bg-red-500/10 p-5 text-sm text-red-100">
+        <div class="mb-8 rounded-[1.5rem] border border-red-400/30 bg-red-500/10 p-5 text-sm text-red-100">
           {% for error in form.non_field_errors %}
             <p>{{ error }}</p>
           {% endfor %}
         </div>
       {% endif %}
 
-      <section class="grid gap-6 md:grid-cols-2">
-        <div class="rounded-[1.5rem] border border-white/10 bg-white/[0.02] p-6">
-          <label for="{{ form.respondent_name.id_for_label }}" class="mb-3 block text-sm text-xuanor-cream">称呼（可选）</label>
-          {{ form.respondent_name }}
-        </div>
-        <div class="rounded-[1.5rem] border border-white/10 bg-white/[0.02] p-6">
-          <label for="{{ form.respondent_email.id_for_label }}" class="mb-3 block text-sm text-xuanor-cream">邮箱（可选）</label>
-          {{ form.respondent_email }}
-          <p class="mt-3 text-xs leading-6 text-xuanor-muted">如果你愿意留下邮箱，后续可以收到与你结果相关的仪式内容与推荐。</p>
-        </div>
-      </section>
-
       {% for question, field in question_forms %}
-        <section class="rounded-[1.75rem] border border-white/10 bg-white/[0.02] p-6 md:p-8">
+        <section class="rounded-[1.75rem] border border-white/10 bg-white/[0.02] p-6 md:p-8" data-question-step="{{ forloop.counter0 }}" x-show="currentStep === {{ forloop.counter0 }}" x-transition>
           <div class="max-w-3xl">
             <p class="text-xs uppercase tracking-[0.35em] text-xuanor-gold">Question {{ forloop.counter }}</p>
-            <h2 class="mt-3 text-2xl leading-tight text-xuanor-cream">{{ question.prompt }}</h2>
+            <h2 class="mt-3 text-2xl leading-tight text-xuanor-cream md:text-3xl">{{ question.prompt }}</h2>
             {% if question.help_text %}
-              <p class="mt-3 text-sm leading-7 text-xuanor-muted">{{ question.help_text }}</p>
+              <p class="mt-4 text-sm leading-7 text-xuanor-muted">{{ question.help_text }}</p>
             {% endif %}
           </div>
 
-          <div class="mt-6 grid gap-4">
+          <div class="mt-8 grid gap-4">
             {% for radio in field %}
-              <label for="{{ radio.id_for_label }}" class="block cursor-pointer rounded-[1.5rem] border border-white/10 bg-white/[0.02] p-5 text-sm leading-7 text-xuanor-muted transition hover:border-xuanor-gold/40 hover:text-xuanor-cream">
+              <label for="{{ radio.id_for_label }}" @click="clearStepError({{ forloop.parentloop.counter0 }})" class="block cursor-pointer rounded-[1.5rem] border border-white/10 bg-white/[0.02] p-5 text-sm leading-7 text-xuanor-muted transition hover:-translate-y-0.5 hover:border-xuanor-gold/40 hover:text-xuanor-cream">
                 <div class="flex items-start gap-4">
                   <span class="mt-1 flex h-5 w-5 items-center justify-center rounded-full border border-white/20">
                     {{ radio.tag }}
@@ -58,20 +138,80 @@
             {% endfor %}
           </div>
 
+          <div class="mt-4 text-sm text-red-200" x-cloak x-show="stepErrors[{{ forloop.counter0 }}]">
+            <p>请先完成这一题。</p>
+          </div>
+
           {% if field.errors %}
-            <div class="mt-4 text-sm text-red-200">
+            <div class="mt-4 text-sm text-red-200" data-field-errors>
               {% for error in field.errors %}
                 <p>{{ error }}</p>
               {% endfor %}
             </div>
           {% endif %}
+
+          <div class="mt-8 flex flex-wrap gap-4">
+            <button type="button" @click="previous()" class="rounded-full border border-white/15 px-6 py-3 text-sm text-xuanor-cream transition hover:border-xuanor-gold hover:text-xuanor-gold" x-show="currentStep > 0">上一题</button>
+            <button type="button" @click="next()" class="rounded-full border border-xuanor-gold bg-xuanor-gold px-6 py-3 text-sm text-black transition hover:opacity-90" x-show="currentStep < questionCount - 1">下一题</button>
+            <button type="button" @click="goToContactStep()" class="rounded-full border border-xuanor-gold bg-xuanor-gold px-6 py-3 text-sm text-black transition hover:opacity-90" x-show="currentStep === questionCount - 1">进入最后一步</button>
+          </div>
         </section>
       {% endfor %}
 
-      <div class="flex flex-wrap gap-4">
-        <button type="submit" class="rounded-full border border-xuanor-gold bg-xuanor-gold px-6 py-3 text-sm text-black transition hover:opacity-90">查看结果</button>
-        <a href="{% url 'pages:five_element_quiz_landing' slug=quiz.slug %}" class="rounded-full border border-white/15 px-6 py-3 text-sm text-xuanor-cream transition hover:border-xuanor-gold hover:text-xuanor-gold">返回介绍</a>
-      </div>
+      <section class="rounded-[1.75rem] border border-white/10 bg-white/[0.02] p-6 md:p-8" x-show="currentStep === questionCount" x-transition>
+        <div class="max-w-3xl">
+          <p class="text-xs uppercase tracking-[0.35em] text-xuanor-gold">Final step</p>
+          <h2 class="mt-3 text-2xl leading-tight text-xuanor-cream md:text-3xl">最后一步，去看你此刻更适合的结果与推荐。</h2>
+          <p class="mt-4 text-sm leading-7 text-xuanor-muted">提交后你会先看到情绪命名与结果解读，再看到主导 / 次级倾向，以及更适合你的主符号、仪式物和氛围承接物。姓名和邮箱都不是必须的。</p>
+        </div>
+
+        <div class="mt-8 grid gap-4 md:grid-cols-3">
+          <div class="rounded-[1.25rem] border border-white/10 bg-black/20 p-5">
+            <p class="text-xs uppercase tracking-[0.28em] text-xuanor-gold">你会看到</p>
+            <p class="mt-3 text-sm leading-7 text-xuanor-muted">先被命名的情绪状态，以及你此刻更需要的节奏。</p>
+          </div>
+          <div class="rounded-[1.25rem] border border-white/10 bg-black/20 p-5">
+            <p class="text-xs uppercase tracking-[0.28em] text-xuanor-gold">结果结构</p>
+            <p class="mt-3 text-sm leading-7 text-xuanor-muted">主导与次级倾向会一起呈现，让混合状态也能被承认。</p>
+          </div>
+          <div class="rounded-[1.25rem] border border-white/10 bg-black/20 p-5">
+            <p class="text-xs uppercase tracking-[0.28em] text-xuanor-gold">后续连接</p>
+            <p class="mt-3 text-sm leading-7 text-xuanor-muted">如果你愿意留下邮箱，后续才会收到与你结果相关的仪式内容与推荐更新。</p>
+          </div>
+        </div>
+
+        <div class="mt-8 grid gap-6 md:grid-cols-2">
+          <div class="rounded-[1.5rem] border border-white/10 bg-black/20 p-6">
+            <label for="{{ form.respondent_name.id_for_label }}" class="mb-3 block text-sm text-xuanor-cream">称呼（可选）</label>
+            {{ form.respondent_name }}
+            {% if form.respondent_name.errors %}
+              <div class="mt-3 text-sm text-red-200" data-contact-errors>
+                {% for error in form.respondent_name.errors %}
+                  <p>{{ error }}</p>
+                {% endfor %}
+              </div>
+            {% endif %}
+          </div>
+          <div class="rounded-[1.5rem] border border-white/10 bg-black/20 p-6">
+            <label for="{{ form.respondent_email.id_for_label }}" class="mb-3 block text-sm text-xuanor-cream">邮箱（可选）</label>
+            {{ form.respondent_email }}
+            <p class="mt-3 text-xs leading-6 text-xuanor-muted">邮箱只在你愿意继续保持连接时再留，不会影响你现在查看结果。</p>
+            {% if form.respondent_email.errors %}
+              <div class="mt-3 text-sm text-red-200" data-contact-errors>
+                {% for error in form.respondent_email.errors %}
+                  <p>{{ error }}</p>
+                {% endfor %}
+              </div>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="mt-8 flex flex-wrap gap-4">
+          <button type="button" @click="previous()" class="rounded-full border border-white/15 px-6 py-3 text-sm text-xuanor-cream transition hover:border-xuanor-gold hover:text-xuanor-gold">上一题</button>
+          <button type="submit" class="rounded-full border border-xuanor-gold bg-xuanor-gold px-6 py-3 text-sm text-black transition hover:opacity-90">查看结果与推荐</button>
+          <a href="{% url 'pages:five_element_quiz_landing' slug=quiz.slug %}" class="rounded-full border border-white/15 px-6 py-3 text-sm text-xuanor-cream transition hover:border-xuanor-gold hover:text-xuanor-gold">返回介绍</a>
+        </div>
+      </section>
     </form>
   </div>
 </section>

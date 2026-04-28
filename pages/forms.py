@@ -78,9 +78,16 @@ class FiveElementLeadCaptureForm(forms.ModelForm):
         model = FiveElementSubmission
         fields = ["respondent_name", "respondent_email"]
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, require_email=False, **kwargs):
         super().__init__(*args, **kwargs)
+        self.require_email = require_email
         self.fields["respondent_name"].required = False
-        self.fields["respondent_email"].required = False
+        self.fields["respondent_email"].required = require_email
         self.fields["respondent_name"].widget.attrs["class"] = INPUT_CLASS
         self.fields["respondent_email"].widget.attrs["class"] = INPUT_CLASS
+
+    def clean_respondent_email(self):
+        email = (self.cleaned_data.get("respondent_email") or "").strip()
+        if self.require_email and not email:
+            raise forms.ValidationError("请先留下邮箱，我们再把你的结果内容发给你。")
+        return email

@@ -49,7 +49,9 @@ class Order(models.Model):
     total_amount = models.DecimalField("订单总额", max_digits=10, decimal_places=2, default=Decimal("0.00"))
     currency = models.CharField("币种", max_length=3, default=Product.Currency.USD)
     notes = models.TextField("备注", blank=True)
+    internal_notes = models.TextField("内部备注", blank=True)
     paid_at = models.DateTimeField("支付时间", blank=True, null=True)
+    closed_at = models.DateTimeField("关闭时间", blank=True, null=True)
     created_at = models.DateTimeField("创建时间", auto_now_add=True)
     updated_at = models.DateTimeField("更新时间", auto_now=True)
 
@@ -140,6 +142,14 @@ class Order(models.Model):
         self.status = self.Status.PENDING
         self.payment_status = self.PaymentStatus.CANCELLED
         self.save(update_fields=["status", "payment_status", "updated_at"])
+
+    def close(self):
+        if self.payment_status == self.PaymentStatus.PAID:
+            raise ValueError("已支付订单不能直接关闭")
+        self.status = self.Status.CANCELLED
+        self.fulfillment_status = self.FulfillmentStatus.CANCELLED
+        self.closed_at = timezone.now()
+        self.save(update_fields=["status", "fulfillment_status", "closed_at", "updated_at"])
 
     def mark_processing(self):
         if self.payment_status != self.PaymentStatus.PAID:

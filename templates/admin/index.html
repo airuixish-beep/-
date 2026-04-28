@@ -35,6 +35,11 @@
     <p>进入统一客服控制台，集中处理访客会话、订单咨询、售后问题和离线留言。</p>
     <p><a class="button default" href="/admin/support_chat/chatsession/">进入在线客服控制台</a></p>
   </div>
+  <div class="module dashboard-entry">
+    <h2>五行测试统计</h2>
+    <p>查看五行测试提交量、结果分布、留资率与最近提交记录。</p>
+    <p><a class="button default" href="{% url 'analytics_dashboard:quiz' %}">进入五行测试统计</a></p>
+  </div>
   {% include "admin/app_list.html" with app_list=app_list show_changelinks=True %}
 </div>
 {% endblock %}

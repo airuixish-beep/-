@@ -124,6 +124,64 @@ class RecommendationViewTests(TestCase):
         self.assertIn("recommended_products", response.context)
         self.assertTrue(response.context["recommended_products"])
 
+    def test_product_list_context_includes_top_level_active_categories(self):
+        active_top = Category.objects.create(name="Active Top", slug="active-top", is_active=True)
+        Category.objects.create(name="Inactive Top", slug="inactive-top", is_active=False)
+        Category.objects.create(name="Child", slug="child", is_active=True, parent=active_top)
+
+        response = self.client.get(reverse("products:list"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(list(response.context["categories"]), [active_top])
+
+    def test_product_list_filters_by_category_slug(self):
+        fragrance = Category.objects.create(name="Fragrance", slug="fragrance", is_active=True)
+        object_category = Category.objects.create(name="Object", slug="object", is_active=True)
+        matching = self.create_product("Matching Product", category=fragrance)
+        self.create_product("Other Product", category=object_category)
+
+        response = self.client.get(reverse("products:list"), {"category": fragrance.slug})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(list(response.context["products"]), [matching])
+        self.assertEqual(response.context["selected_category_slug"], fragrance.slug)
+        self.assertTrue(response.context["has_filters"])
+        self.assertEqual(response.context["recommended_products"], [])
+
+    def test_product_list_category_filter_keeps_inactive_products_hidden(self):
+        category = Category.objects.create(name="Fragrance", slug="fragrance", is_active=True)
+        visible = self.create_product("Visible Product", category=category)
+        self.create_product("Hidden Product", category=category, is_active=False)
+
+        response = self.client.get(reverse("products:list"), {"category": category.slug})
+
+        self.assertEqual(list(response.context["products"]), [visible])
+
+    def test_product_list_featured_filter(self):
+        featured = self.create_product("Featured Product", is_featured=True)
+        self.create_product("Regular Product", is_featured=False)
+
+        response = self.client.get(reverse("products:list"), {"featured": "1"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(list(response.context["products"]), [featured])
+        self.assertTrue(response.context["selected_featured"])
+        self.assertTrue(response.context["has_filters"])
+        self.assertEqual(response.context["recommended_products"], [])
+
+    def test_product_list_available_filter(self):
+        available = self.create_product("Available Product", is_purchasable=True, stock_quantity=5)
+        self.create_product("No Stock Product", is_purchasable=True, stock_quantity=0)
+        self.create_product("Not Purchasable Product", is_purchasable=False, stock_quantity=5)
+
+        response = self.client.get(reverse("products:list"), {"available": "1"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(list(response.context["products"]), [available])
+        self.assertTrue(response.context["selected_available"])
+        self.assertTrue(response.context["has_filters"])
+        self.assertEqual(response.context["recommended_products"], [])
+
     def test_product_detail_context_includes_related_products(self):
         product = self.create_product("Current Product")
         related = self.create_product("Related Product", is_featured=True)

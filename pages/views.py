@@ -5,9 +5,28 @@ from django.shortcuts import get_object_or_404, redirect, render
 from products.models import Product
 from products.services import get_recommended_products
 
-from .forms import FiveElementQuizForm
+from .forms import FiveElementLeadCaptureForm, FiveElementQuizForm
 from .models import FiveElementQuiz, FiveElementSubmission
-from .services import evaluate_five_element_result, get_profile_recommendations
+from .services import build_result_summary, evaluate_five_element_result, get_profile_recommendations
+
+
+def _build_score_breakdown_from_snapshot(quiz, score_snapshot):
+    profiles = {profile.code: profile for profile in quiz.profiles.filter(is_active=True).order_by("sort_order", "id")}
+    visible_codes = [code for code in score_snapshot.keys() if code in profiles]
+    ordered_codes = sorted(visible_codes, key=lambda code: (-score_snapshot[code], profiles[code].sort_order, profiles[code].id))
+    max_score = max((score_snapshot[code] for code in visible_codes), default=0)
+    score_breakdown = []
+    for code in ordered_codes:
+        score = score_snapshot[code]
+        score_breakdown.append(
+            {
+                "profile": profiles[code],
+                "score": score,
+                "strong_hits": None,
+                "bar_width": max(12, int(score / max_score * 100)) if max_score and score > 0 else 0,
+            }
+        )
+    return score_breakdown
 
 
 FIVE_ELEMENT_PREVIEW = [
@@ -36,12 +55,14 @@ def home(request):
 def five_element_quiz_landing(request, slug):
     quiz = _get_active_quiz(slug)
     profiles = list(quiz.profiles.filter(is_active=True).order_by("sort_order", "id"))
+    question_count = quiz.questions.filter(is_active=True).count()
     return render(
         request,
         "pages/five_element_quiz_landing.html",
         {
             "quiz": quiz,
             "profiles": profiles,
+            "question_count": question_count,
         },
     )
 
@@ -76,6 +97,7 @@ def five_element_quiz_take(request, slug):
             "quiz": quiz,
             "form": form,
             "question_forms": question_forms,
+            "question_count": len(question_forms),
         },
     )
 
@@ -90,7 +112,21 @@ def five_element_quiz_result(request, slug, token):
     if submission.primary_profile is None:
         raise Http404("结果尚未生成。")
 
+    if request.method == "POST":
+        lead_form = FiveElementLeadCaptureForm(request.POST, instance=submission, require_email=True)
+        if lead_form.is_valid():
+            lead_form.save()
+            return redirect("pages:five_element_quiz_result", slug=quiz.slug, token=submission.token)
+    else:
+        lead_form = FiveElementLeadCaptureForm(instance=submission)
+
     recommendations = get_profile_recommendations(submission.primary_profile)
+    score_breakdown = _build_score_breakdown_from_snapshot(quiz, submission.score_snapshot)
+    primary_score = score_breakdown[0]["score"] if score_breakdown else 0
+    secondary_score = score_breakdown[1]["score"] if len(score_breakdown) > 1 else 0
+    score_gap = primary_score - secondary_score
+    total_score = sum(item["score"] for item in score_breakdown)
+    result_summary = build_result_summary(submission.primary_profile, submission.secondary_profile)
     return render(
         request,
         "pages/five_element_quiz_result.html",
@@ -100,6 +136,14 @@ def five_element_quiz_result(request, slug, token):
             "primary_profile": submission.primary_profile,
             "secondary_profile": submission.secondary_profile,
             "recommendations": recommendations,
+            "score_breakdown": score_breakdown,
+            "primary_score": primary_score,
+            "secondary_score": secondary_score,
+            "score_gap": score_gap,
+            "total_score": total_score,
+            "lead_form": lead_form,
+            "lead_capture_complete": bool(submission.respondent_email),
+            "result_summary": result_summary,
         },
     )
 

@@ -7,15 +7,47 @@ from django.views.decorators.http import require_POST
 from payments.models import Payment
 from payments.services import PaymentGatewayError, create_payment_redirect
 from products.models import Product
+from transactions.services import get_or_create_purchase_transaction, mark_payment_failed, observe_risk
 
 from .forms import CheckoutForm
 from .models import Order, OrderItem
 
 
 def _mark_payment_attempt_failed(order, payment):
-    payment.status = Payment.Status.FAILED
-    payment.save(update_fields=["status", "updated_at"])
-    order.mark_payment_failed()
+    mark_payment_failed(
+        payment,
+        source="orders.checkout",
+        idempotency_key=f"checkout-failed:{payment.id}",
+        payload={"order_id": order.id},
+    )
+
+
+def _build_risk_payload(order, payment, *, phase, is_retry):
+    return {
+        "phase": phase,
+        "order_id": order.id,
+        "order_number": order.order_number,
+        "payment_id": payment.id,
+        "provider": payment.provider,
+        "customer_email": order.customer_email,
+        "shipping_country": order.shipping_country,
+        "shipping_city": order.shipping_city,
+        "amount": str(payment.amount),
+        "currency": payment.currency,
+        "is_retry": is_retry,
+    }
+
+
+def _observe_checkout_risk(transaction_obj, order, payment, *, phase, is_retry):
+    try:
+        observe_risk(
+            transaction_obj,
+            phase=phase,
+            payload=_build_risk_payload(order, payment, phase=phase, is_retry=is_retry),
+        )
+    except Exception:
+        return None
+    return transaction_obj
 
 
 
@@ -52,6 +84,8 @@ def checkout(request, slug):
             amount=order.total_amount,
             currency=order.currency,
         )
+        transaction_obj = get_or_create_purchase_transaction(order, payment)
+        _observe_checkout_risk(transaction_obj, order, payment, phase="pre_payment_checkout", is_retry=False)
         try:
             redirect_url = create_payment_redirect(payment, request)
         except Exception:
@@ -98,6 +132,12 @@ def retry_payment(request, public_token):
         amount=order.total_amount,
         currency=order.currency,
     )
+    existing_transaction = latest_payment.transaction
+    if existing_transaction is None:
+        existing_transaction = get_or_create_purchase_transaction(order, latest_payment)
+    payment.transaction = existing_transaction
+    payment.save(update_fields=["transaction", "updated_at"])
+    _observe_checkout_risk(existing_transaction, order, payment, phase="pre_payment_retry", is_retry=True)
 
     try:
         redirect_url = create_payment_redirect(payment, request)

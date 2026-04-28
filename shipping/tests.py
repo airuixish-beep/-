@@ -10,7 +10,7 @@ from orders.models import Order, OrderItem
 from products.models import Product
 
 from .models import Shipment, ShipmentEvent
-from .services import EasyPostService, ShippingConfigurationError
+from .services import EasyPostService, ShipmentOpsService, ShippingConfigurationError
 
 
 class ShipmentModelTests(TestCase):
@@ -80,6 +80,47 @@ class ShipmentModelTests(TestCase):
 
         self.assertEqual(order.fulfillment_status, Order.FulfillmentStatus.CANCELLED)
         self.assertEqual(order.status, Order.Status.CANCELLED)
+
+
+class ShipmentOpsServiceTests(TestCase):
+    def setUp(self):
+        self.order = Order.objects.create(
+            customer_name="Manual Ship",
+            customer_email="manual@example.com",
+            shipping_country="US",
+            shipping_city="Austin",
+            shipping_postal_code="73301",
+            shipping_address_line1="3 River Rd",
+        )
+        self.order.payment_status = Order.PaymentStatus.PAID
+        self.order.status = Order.Status.PAID
+        self.order.save(update_fields=["payment_status", "status", "updated_at"])
+
+    def test_create_manual_shipment_and_mark_delivered_syncs_order(self):
+        shipment = ShipmentOpsService.create_manual_shipment(
+            self.order,
+            tracking_number="MANUAL123",
+            carrier_name="UPS",
+            operator_notes="created manually",
+        )
+        shipment = ShipmentOpsService.mark_shipped(
+            shipment,
+            tracking_number="MANUAL123",
+            carrier_name="UPS",
+        )
+        self.order.refresh_from_db()
+        shipment.refresh_from_db()
+        self.assertEqual(shipment.status, Shipment.Status.SHIPPED)
+        self.assertEqual(self.order.status, Order.Status.SHIPPED)
+        self.assertEqual(self.order.fulfillment_status, Order.FulfillmentStatus.SHIPPED)
+
+        ShipmentOpsService.mark_delivered(shipment)
+        self.order.refresh_from_db()
+        shipment.refresh_from_db()
+        self.assertEqual(shipment.status, Shipment.Status.DELIVERED)
+        self.assertEqual(self.order.status, Order.Status.DELIVERED)
+        self.assertEqual(self.order.fulfillment_status, Order.FulfillmentStatus.DELIVERED)
+        self.assertEqual(shipment.events.count(), 3)
 
 
 class EasyPostServiceTests(TestCase):

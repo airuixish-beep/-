@@ -1,4 +1,8 @@
+import csv
+import json
+
 from django.contrib import admin
+from django.http import HttpResponse
 
 from .models import (
     FiveElementOption,
@@ -103,11 +107,78 @@ class FiveElementOptionAdmin(admin.ModelAdmin):
     inlines = [FiveElementOptionScoreInline]
 
 
+class HasEmailListFilter(admin.SimpleListFilter):
+    title = "是否留邮箱"
+    parameter_name = "has_email"
+
+    def lookups(self, request, model_admin):
+        return (("yes", "有邮箱"), ("no", "无邮箱"))
+
+    def queryset(self, request, queryset):
+        if self.value() == "yes":
+            return queryset.exclude(respondent_email="")
+        if self.value() == "no":
+            return queryset.filter(respondent_email="")
+        return queryset
+
+
+class HasSourceListFilter(admin.SimpleListFilter):
+    title = "是否有来源"
+    parameter_name = "has_source"
+
+    def lookups(self, request, model_admin):
+        return (("yes", "有来源"), ("no", "直接访问"))
+
+    def queryset(self, request, queryset):
+        if self.value() == "yes":
+            return queryset.exclude(utm_source="", utm_medium="", utm_campaign="")
+        if self.value() == "no":
+            return queryset.filter(utm_source="", utm_medium="", utm_campaign="")
+        return queryset
+
+
+class HasSecondaryProfileListFilter(admin.SimpleListFilter):
+    title = "次级结果"
+    parameter_name = "has_secondary_profile"
+
+    def lookups(self, request, model_admin):
+        return (("yes", "有次级结果"), ("no", "无次级结果"))
+
+    def queryset(self, request, queryset):
+        if self.value() == "yes":
+            return queryset.exclude(secondary_profile__isnull=True)
+        if self.value() == "no":
+            return queryset.filter(secondary_profile__isnull=True)
+        return queryset
+
+
 @admin.register(FiveElementSubmission)
 class FiveElementSubmissionAdmin(admin.ModelAdmin):
-    list_display = ("quiz", "primary_profile", "secondary_profile", "respondent_email", "created_at")
-    list_filter = ("quiz", "primary_profile", "secondary_profile", "created_at")
-    search_fields = ("respondent_name", "respondent_email", "token")
+    list_display = (
+        "created_at",
+        "quiz",
+        "primary_profile",
+        "secondary_profile",
+        "lead_status",
+        "respondent_name",
+        "respondent_email",
+        "lead_source_summary",
+    )
+    list_filter = (
+        "quiz",
+        "primary_profile",
+        "secondary_profile",
+        HasSecondaryProfileListFilter,
+        HasEmailListFilter,
+        HasSourceListFilter,
+        "utm_source",
+        "utm_medium",
+        "utm_campaign",
+        "created_at",
+    )
+    list_select_related = ("quiz", "primary_profile", "secondary_profile")
+    search_fields = ("respondent_name", "respondent_email", "token", "utm_source", "utm_medium", "utm_campaign")
+    actions = ["export_selected_submissions"]
     readonly_fields = (
         "token",
         "quiz",
@@ -115,14 +186,74 @@ class FiveElementSubmissionAdmin(admin.ModelAdmin):
         "secondary_profile",
         "respondent_name",
         "respondent_email",
-        "answers_json",
-        "score_snapshot",
+        "answers_json_pretty",
+        "score_snapshot_pretty",
         "utm_source",
         "utm_medium",
         "utm_campaign",
         "created_at",
         "updated_at",
     )
+    fieldsets = (
+        ("结果信息", {"fields": ("token", "quiz", "primary_profile", "secondary_profile", "created_at")}),
+        ("留资信息", {"fields": ("respondent_name", "respondent_email")}),
+        ("投放来源", {"fields": ("utm_source", "utm_medium", "utm_campaign")}),
+        ("答案快照", {"fields": ("answers_json_pretty", "score_snapshot_pretty")}),
+        ("系统信息", {"fields": ("updated_at",)}),
+    )
+
+    @admin.display(description="留资状态")
+    def lead_status(self, obj):
+        return "已留资" if obj.respondent_email else "未留资"
+
+    @admin.display(description="来源")
+    def lead_source_summary(self, obj):
+        parts = [value for value in (obj.utm_source, obj.utm_medium, obj.utm_campaign) if value]
+        return " / ".join(parts) if parts else "直接访问"
+
+    @admin.display(description="答案快照")
+    def answers_json_pretty(self, obj):
+        return json.dumps(obj.answers_json, ensure_ascii=False, indent=2)
+
+    @admin.display(description="得分快照")
+    def score_snapshot_pretty(self, obj):
+        return json.dumps(obj.score_snapshot, ensure_ascii=False, indent=2)
+
+    @admin.action(description="导出所选提交为 CSV")
+    def export_selected_submissions(self, request, queryset):
+        response = HttpResponse(content_type="text/csv")
+        response["Content-Disposition"] = 'attachment; filename="five-element-submissions.csv"'
+        writer = csv.writer(response)
+        writer.writerow(
+            [
+                "created_at",
+                "quiz",
+                "primary_profile",
+                "secondary_profile",
+                "respondent_name",
+                "respondent_email",
+                "utm_source",
+                "utm_medium",
+                "utm_campaign",
+                "token",
+            ]
+        )
+        for submission in queryset.select_related("quiz", "primary_profile", "secondary_profile"):
+            writer.writerow(
+                [
+                    submission.created_at.isoformat(),
+                    submission.quiz.name,
+                    submission.primary_profile.name if submission.primary_profile else "",
+                    submission.secondary_profile.name if submission.secondary_profile else "",
+                    submission.respondent_name,
+                    submission.respondent_email,
+                    submission.utm_source,
+                    submission.utm_medium,
+                    submission.utm_campaign,
+                    submission.token,
+                ]
+            )
+        return response
 
     def has_add_permission(self, request):
         return False

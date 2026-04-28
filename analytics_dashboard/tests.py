@@ -8,11 +8,16 @@ from django.urls import reverse
 from django.utils import timezone
 
 from orders.models import Order, OrderItem
+from pages.models import FiveElementOption, FiveElementProfile, FiveElementQuestion, FiveElementQuiz, FiveElementSubmission
 from payments.models import Payment
 from products.models import Product
 from shipping.models import Shipment
+from transactions.engine import TransactionEngine
+from transactions.models import Refund
+from transactions.refunds import RefundCenter
+from transactions.services import get_or_create_purchase_transaction
 
-from .services import build_dashboard_context, parse_dashboard_filters
+from .services import build_dashboard_context, build_quiz_dashboard_context, parse_dashboard_filters
 
 
 class AnalyticsDashboardAccessTests(TestCase):
@@ -64,6 +69,117 @@ class AnalyticsDashboardAccessTests(TestCase):
         self.assertContains(response, "发货状态分析")
         self.assertContains(response, "当前时间范围暂无支付记录。")
         self.assertContains(response, "当前没有低库存可售商品。")
+
+
+class QuizDashboardServiceTests(TestCase):
+    def setUp(self):
+        self.quiz = FiveElementQuiz.objects.create(
+            name="五行情绪人格测试",
+            slug="five-elements",
+            title="测试你的五行人格与当下仪式路径",
+            is_active=True,
+        )
+        self.wood = FiveElementProfile.objects.create(
+            quiz=self.quiz,
+            code=FiveElementProfile.ElementCode.WOOD,
+            name="木",
+            theme_word="生长",
+            emotion_title="你现在需要重新开始生长。",
+            emotion_body="你不是缺少努力，而是需要一个允许自己慢慢展开的环境。",
+            result_title="你的主导五行是木",
+            primary_symbol_title="绿幽灵吊坠 / 项链",
+            ritual_object_title="书写本 / Journal",
+            ambient_object_title="扩香木 / 木系精油",
+        )
+        self.fire = FiveElementProfile.objects.create(
+            quiz=self.quiz,
+            code=FiveElementProfile.ElementCode.FIRE,
+            name="火",
+            theme_word="回温",
+            emotion_title="你现在需要慢慢回温。",
+            emotion_body="不是再被点燃一次，而是让身体和心重新有温度。",
+            result_title="你的主导五行是火",
+            primary_symbol_title="石榴石吊坠 / 项链",
+            ritual_object_title="肉桂精油",
+            ambient_object_title="扩香木 / 香气仪式物",
+        )
+        self.question = FiveElementQuestion.objects.create(quiz=self.quiz, prompt="当你卡住时，你最想先做什么？")
+        self.option_wood = FiveElementOption.objects.create(question=self.question, label="先写下来。")
+        self.option_fire = FiveElementOption.objects.create(question=self.question, label="先让自己暖起来。")
+        self.submission_one = FiveElementSubmission.objects.create(
+            quiz=self.quiz,
+            primary_profile=self.wood,
+            secondary_profile=self.fire,
+            respondent_email="amy@example.com",
+            score_snapshot={"wood": 5, "fire": 3},
+        )
+        self.submission_two = FiveElementSubmission.objects.create(
+            quiz=self.quiz,
+            primary_profile=self.fire,
+            respondent_email="jane@example.com",
+            score_snapshot={"fire": 4, "wood": 2},
+        )
+
+    def test_quiz_dashboard_context_aggregates_submissions_leads_and_attribution(self):
+        self.submission_one.utm_source = "instagram"
+        self.submission_one.utm_medium = "paid-social"
+        self.submission_one.utm_campaign = "spring-launch"
+        self.submission_one.save(update_fields=["utm_source", "utm_medium", "utm_campaign", "updated_at"])
+        filters = parse_dashboard_filters(QueryDict("range=30d&currency=USD"))
+
+        context = build_quiz_dashboard_context(filters)
+
+        self.assertEqual(context["quiz_summary"]["total_submissions"], 2)
+        self.assertEqual(context["quiz_summary"]["lead_count"], 2)
+        self.assertEqual(context["quiz_summary"]["lead_rate"], 100.0)
+        self.assertEqual(context["quiz_summary"]["result_counts"]["木"], 1)
+        self.assertEqual(context["quiz_summary"]["result_counts"]["火"], 1)
+        self.assertEqual(len(context["quiz_summary"]["recent_submissions"]), 2)
+        self.assertEqual(context["quiz_attribution"]["sources"][0]["label"], "instagram")
+        self.assertEqual(context["quiz_attribution"]["sources"][0]["count"], 1)
+
+
+class QuizDashboardNavigationTests(TestCase):
+    def setUp(self):
+        user_model = get_user_model()
+        self.staff_user = user_model.objects.create_user(
+            username="staff-nav",
+            email="staff-nav@example.com",
+            password="password123",
+            is_staff=True,
+        )
+
+    def test_admin_index_links_to_quiz_dashboard(self):
+        self.client.force_login(self.staff_user)
+
+        response = self.client.get(reverse("admin:index"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, reverse("analytics_dashboard:quiz"))
+        self.assertContains(response, "五行测试统计")
+
+
+class QuizDashboardViewTests(TestCase):
+    def setUp(self):
+        user_model = get_user_model()
+        self.staff_user = user_model.objects.create_user(
+            username="staff-quiz",
+            email="staff-quiz@example.com",
+            password="password123",
+            is_staff=True,
+        )
+
+    def test_staff_user_can_access_quiz_dashboard(self):
+        self.client.force_login(self.staff_user)
+
+        response = self.client.get(reverse("analytics_dashboard:quiz"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "五行测试提交统计")
+        self.assertContains(response, "测试提交数")
+        self.assertContains(response, "主导结果分布")
+        self.assertContains(response, "来源归因")
+        self.assertContains(response, "查看对应提交")
 
 
 class AnalyticsDashboardServiceTests(TestCase):
@@ -139,6 +255,24 @@ class AnalyticsDashboardServiceTests(TestCase):
             payment_status=Payment.Status.FAILED,
         )
 
+        refund_transaction = self.delivered_order.transactions.first()
+        refund = RefundCenter.create_request(
+            refund_transaction,
+            amount=Decimal("20.00"),
+            currency="USD",
+            reason="analytics refund",
+        )
+        refund.status = Refund.Status.SUCCEEDED
+        refund.provider_refund_id = "re_analytics_1"
+        refund.save(update_fields=["status", "provider_refund_id", "updated_at"])
+        TransactionEngine.mark_refund_succeeded(
+            refund,
+            source="analytics.test",
+            idempotency_key="analytics-refund:1",
+            provider_refund_id="re_analytics_1",
+            payload={"source": "analytics.test"},
+        )
+
     def test_dashboard_context_aggregates_paid_orders_and_shipping_metrics(self):
         filters = parse_dashboard_filters(QueryDict("range=30d&currency=USD"))
 
@@ -146,8 +280,12 @@ class AnalyticsDashboardServiceTests(TestCase):
 
         self.assertEqual(context["kpis"]["order_count"], 3)
         self.assertEqual(context["kpis"]["paid_order_count"], 2)
-        self.assertEqual(context["kpis"]["sales_total"], Decimal("295.00"))
+        self.assertEqual(context["kpis"]["gmv"], Decimal("295.00"))
+        self.assertEqual(context["kpis"]["refund_total"], Decimal("20.00"))
+        self.assertEqual(context["kpis"]["net_revenue"], Decimal("275.00"))
         self.assertEqual(context["kpis"]["average_order_value"], Decimal("147.50"))
+        self.assertEqual(context["kpis"]["payment_conversion_rate"], 66.7)
+        self.assertEqual(float(context["kpis"]["refund_rate"]), 6.8)
         self.assertEqual(context["kpis"]["shipping_in_progress_count"], 1)
         self.assertEqual(context["kpis"]["delivered_order_count"], 1)
 
@@ -155,6 +293,10 @@ class AnalyticsDashboardServiceTests(TestCase):
         self.assertEqual(payment_rows[Payment.Provider.STRIPE]["paid_count"], 1)
         self.assertEqual(payment_rows[Payment.Provider.PAYPAL]["paid_count"], 1)
         self.assertEqual(context["payment_summary"]["failed_count"], 1)
+        self.assertEqual(context["financial_summary"]["gross_total"], Decimal("295.00"))
+        self.assertEqual(context["financial_summary"]["refund_total"], Decimal("20.00"))
+        self.assertEqual(context["financial_summary"]["fee_total"], Decimal("0.00"))
+        self.assertEqual(context["financial_summary"]["net_revenue"], Decimal("275.00"))
 
     def test_product_leaderboard_only_counts_paid_items(self):
         filters = parse_dashboard_filters(QueryDict("range=30d&currency=USD"))
@@ -196,7 +338,14 @@ class AnalyticsDashboardServiceTests(TestCase):
         created_in_range_paid_outside_payment.status = Payment.Status.PAID
         created_in_range_paid_outside_payment.paid_at = created_in_range_paid_outside.paid_at
         created_in_range_paid_outside_payment.created_at = timezone.make_aware(datetime.combine(in_range_day, time.min))
-        created_in_range_paid_outside_payment.save(update_fields=["status", "paid_at", "created_at", "updated_at"])
+        created_in_range_paid_outside_payment.external_payment_id = f"ext-{created_in_range_paid_outside.order_number}"
+        created_in_range_paid_outside_payment.save(update_fields=["status", "paid_at", "created_at", "external_payment_id", "updated_at"])
+        transaction_obj = created_in_range_paid_outside.transactions.first()
+        transaction_obj.status = transaction_obj.Status.PAID
+        transaction_obj.paid_at = created_in_range_paid_outside.paid_at
+        transaction_obj.amount = created_in_range_paid_outside.total_amount
+        transaction_obj.save(update_fields=["status", "paid_at", "amount", "updated_at"])
+        TransactionEngine.post_payment_ledger_entries(transaction_obj, created_in_range_paid_outside_payment)
         Shipment.objects.create(
             order=created_in_range_paid_outside,
             provider=Shipment.Provider.MANUAL,
@@ -231,7 +380,7 @@ class AnalyticsDashboardServiceTests(TestCase):
 
         self.assertEqual(context["kpis"]["order_count"], 1)
         self.assertEqual(context["kpis"]["paid_order_count"], 1)
-        self.assertEqual(context["kpis"]["sales_total"], created_outside_paid_in_range.total_amount)
+        self.assertEqual(context["kpis"]["gmv"], created_outside_paid_in_range.total_amount)
         self.assertEqual(context["kpis"]["shipping_in_progress_count"], 1)
         self.assertEqual(context["kpis"]["delivered_order_count"], 0)
         self.assertEqual(context["payment_summary"]["failed_count"], 0)
@@ -284,12 +433,22 @@ class AnalyticsDashboardServiceTests(TestCase):
         if mark_paid:
             paid_at = paid_at or self.now
             order.mark_paid(paid_at=paid_at)
-            Payment.objects.create(
+            payment = Payment.objects.create(
                 order=order,
                 provider=provider,
                 status=Payment.Status.PAID,
                 amount=order.total_amount,
                 currency=order.currency,
+                paid_at=paid_at,
+                external_payment_id=f"ext-{order.order_number}",
+            )
+            transaction_obj = get_or_create_purchase_transaction(order, payment)
+            TransactionEngine.confirm_payment_succeeded(
+                payment,
+                source="analytics.test",
+                idempotency_key=f"analytics-paid:{payment.id}",
+                external_payment_id=payment.external_payment_id,
+                payload={"source": "analytics.test"},
                 paid_at=paid_at,
             )
             Shipment.objects.create(
@@ -299,13 +458,14 @@ class AnalyticsDashboardServiceTests(TestCase):
             )
             order.sync_fulfillment_from_shipment_status(shipment_status or Shipment.Status.PENDING)
         else:
-            Payment.objects.create(
+            payment = Payment.objects.create(
                 order=order,
                 provider=provider,
                 status=payment_status,
                 amount=order.total_amount,
                 currency=order.currency,
             )
+            get_or_create_purchase_transaction(order, payment)
             if payment_status == Payment.Status.FAILED:
                 order.mark_payment_failed()
 

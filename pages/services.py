@@ -51,12 +51,48 @@ def evaluate_five_element_result(*, quiz, option_ids):
         for profile in ranked_profiles
     ]
 
+    primary_score = scores[primary_profile.id] if primary_profile else 0
+    secondary_score = scores[secondary_profile.id] if secondary_profile else 0
+    score_gap = primary_score - secondary_score if primary_profile and secondary_profile else primary_score
+    total_score = sum(scores.values())
+
     return {
         "primary_profile": primary_profile,
         "secondary_profile": secondary_profile,
+        "primary_score": primary_score,
+        "secondary_score": secondary_score,
+        "score_gap": score_gap,
+        "total_score": total_score,
         "is_close_match": is_close_match,
         "score_breakdown": score_breakdown,
         "score_snapshot": {profile.code: scores[profile.id] for profile in ranked_profiles},
+    }
+
+
+def build_result_summary(primary_profile, secondary_profile=None):
+    lines = [
+        f"你的主导五行是{primary_profile.name}，对应{primary_profile.theme_word}。",
+        primary_profile.emotion_title,
+        primary_profile.emotion_body,
+    ]
+    if secondary_profile:
+        lines.append(f"次级倾向里还带着一些{secondary_profile.name}的气质：{secondary_profile.theme_word}。")
+    return {
+        "headline": primary_profile.result_title,
+        "theme_word": primary_profile.theme_word,
+        "summary_lines": lines,
+        "primary_symbol": {
+            "title": primary_profile.primary_symbol_title,
+            "description": primary_profile.primary_symbol_description,
+        },
+        "ritual_object": {
+            "title": primary_profile.ritual_object_title,
+            "description": primary_profile.ritual_object_description,
+        },
+        "ambient_object": {
+            "title": primary_profile.ambient_object_title,
+            "description": primary_profile.ambient_object_description,
+        },
     }
 
 

@@ -6,26 +6,29 @@
 {% block content %}
 <section class="border-b border-white/10">
   <div class="mx-auto max-w-7xl px-6 py-20 lg:px-10">
-    <div class="grid gap-10 lg:grid-cols-[1.05fr_0.95fr]">
+    <div class="grid gap-12 lg:grid-cols-[1.05fr_0.95fr]">
       <div class="max-w-2xl">
         <p class="text-xs uppercase tracking-[0.35em] text-xuanor-gold">Your current ritual path</p>
-        <h1 class="mt-4 text-4xl leading-tight text-xuanor-cream md:text-5xl lg:text-6xl">{{ primary_profile.result_title }}</h1>
-        <p class="mt-6 text-xl text-xuanor-cream">{{ primary_profile.theme_word }}</p>
-        <div class="mt-8 rounded-[1.75rem] border border-xuanor-gold/20 bg-xuanor-gold/5 p-6">
+        <h1 class="mt-4 text-4xl leading-tight text-xuanor-cream md:text-5xl lg:text-6xl">{{ result_summary.headline }}</h1>
+        <p class="mt-6 text-xl text-xuanor-cream">{{ result_summary.theme_word }}</p>
+
+        <div class="mt-8 rounded-[1.75rem] border border-xuanor-gold/20 bg-xuanor-gold/5 p-6 md:p-8">
           <p class="text-sm uppercase tracking-[0.28em] text-xuanor-gold">先给你的情绪一个名字</p>
-          <h2 class="mt-3 text-2xl text-xuanor-cream">{{ primary_profile.emotion_title }}</h2>
-          <p class="mt-4 text-sm leading-7 text-xuanor-muted">{{ primary_profile.emotion_body|linebreaksbr }}</p>
+          {% for line in result_summary.summary_lines %}
+            <p class="mt-3 text-sm leading-7 text-xuanor-muted">{{ line|linebreaksbr }}</p>
+          {% endfor %}
         </div>
-        <div class="mt-8 rounded-[1.75rem] border border-white/10 bg-white/[0.02] p-6">
+
+        <div class="mt-8 rounded-[1.75rem] border border-white/10 bg-white/[0.02] p-6 md:p-8">
           <p class="text-sm uppercase tracking-[0.28em] text-xuanor-gold">结果解读</p>
           <p class="mt-4 text-sm leading-7 text-xuanor-muted">{{ primary_profile.long_description|default:primary_profile.short_description|linebreaksbr }}</p>
+          {% if secondary_profile %}
+            <div class="mt-6 rounded-[1.25rem] border border-white/10 bg-black/20 p-5">
+              <p class="text-sm uppercase tracking-[0.28em] text-xuanor-gold">次级倾向</p>
+              <p class="mt-3 text-sm leading-7 text-xuanor-muted">你的状态里也带有一些{{ secondary_profile.name }}的倾向：{{ secondary_profile.theme_word }}。这说明你不仅在寻找{{ primary_profile.theme_word }}，也在靠近{{ secondary_profile.theme_word }}的方式。</p>
+            </div>
+          {% endif %}
         </div>
-        {% if secondary_profile %}
-          <div class="mt-8 rounded-[1.5rem] border border-white/10 p-6">
-            <p class="text-sm uppercase tracking-[0.28em] text-xuanor-gold">次级倾向</p>
-            <p class="mt-3 text-sm leading-7 text-xuanor-muted">你的状态里也带有一些{{ secondary_profile.name }}的倾向：{{ secondary_profile.theme_word }}。这说明你不仅在寻找{{ primary_profile.theme_word }}，也在靠近{{ secondary_profile.theme_word }}的方式。</p>
-          </div>
-        {% endif %}
       </div>
 
       <div class="grid gap-4 self-start">
@@ -51,12 +54,65 @@
 
 <section class="border-b border-white/10">
   <div class="mx-auto max-w-7xl px-6 py-20 lg:px-10">
-    <div class="mb-10 flex items-end justify-between gap-6">
-      <div>
-        <p class="text-xs uppercase tracking-[0.35em] text-xuanor-gold">Recommended ritual objects</p>
-        <h2 class="mt-3 text-3xl text-xuanor-cream md:text-4xl">适合你此刻的三种承接方式</h2>
+    <div class="grid gap-8 lg:grid-cols-[0.9fr_1.1fr]">
+      <div class="rounded-[1.75rem] border border-white/10 bg-white/[0.02] p-6 md:p-8">
+        <p class="text-xs uppercase tracking-[0.35em] text-xuanor-gold">Why this result</p>
+        <h2 class="mt-3 text-3xl text-xuanor-cream">你的结果结构</h2>
+        <div class="mt-8 space-y-5">
+          {% for item in score_breakdown %}
+            <div>
+              <div class="mb-2 flex items-center justify-between gap-4 text-sm">
+                <span class="text-xuanor-cream">{{ item.profile.name }} · {{ item.profile.theme_word }}</span>
+                <span class="text-xuanor-muted">{{ item.score }}</span>
+              </div>
+              <div class="h-2 overflow-hidden rounded-full bg-white/10">
+                <div class="h-full rounded-full bg-xuanor-gold" style="width: {{ item.bar_width }}%"></div>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
       </div>
-      <a href="/products/" class="hidden text-sm text-xuanor-muted hover:text-xuanor-gold md:block">查看全部</a>
+
+      <div class="rounded-[1.75rem] border border-white/10 bg-white/[0.02] p-6 md:p-8">
+        <p class="text-xs uppercase tracking-[0.35em] text-xuanor-gold">Interpretation</p>
+        <h2 class="mt-3 text-3xl text-xuanor-cream">你此刻最需要的，不是更多答案，而是更适合你的路径。</h2>
+        <div class="mt-8 grid gap-4 md:grid-cols-3">
+          <div class="rounded-[1.25rem] border border-white/10 bg-black/20 p-5">
+            <p class="text-xs uppercase tracking-[0.28em] text-xuanor-gold">主导结果</p>
+            <p class="mt-3 text-xl text-xuanor-cream">{{ primary_profile.name }} · {{ primary_profile.theme_word }}</p>
+            <p class="mt-2 text-sm leading-7 text-xuanor-muted">得分 {{ primary_score }}</p>
+          </div>
+          <div class="rounded-[1.25rem] border border-white/10 bg-black/20 p-5">
+            <p class="text-xs uppercase tracking-[0.28em] text-xuanor-gold">次级倾向</p>
+            {% if secondary_profile %}
+              <p class="mt-3 text-xl text-xuanor-cream">{{ secondary_profile.name }} · {{ secondary_profile.theme_word }}</p>
+              <p class="mt-2 text-sm leading-7 text-xuanor-muted">得分 {{ secondary_score }}</p>
+            {% else %}
+              <p class="mt-3 text-xl text-xuanor-cream">相对集中</p>
+              <p class="mt-2 text-sm leading-7 text-xuanor-muted">你的结果已经比较明确地落在 {{ primary_profile.name }} 上。</p>
+            {% endif %}
+          </div>
+          <div class="rounded-[1.25rem] border border-white/10 bg-black/20 p-5">
+            <p class="text-xs uppercase tracking-[0.28em] text-xuanor-gold">当前差值</p>
+            <p class="mt-3 text-xl text-xuanor-cream">{{ score_gap }}</p>
+            <p class="mt-2 text-sm leading-7 text-xuanor-muted">差值越小，说明你的状态里越可能带有混合倾向。</p>
+          </div>
+        </div>
+        <p class="mt-8 text-sm leading-7 text-xuanor-muted">这份结果不是为了把你归类，而是帮助你看到：在所有可能的方式里，你此刻更需要哪一种情绪承接、哪一种节奏，以及哪一种仪式路径。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="border-b border-white/10">
+  <div class="mx-auto max-w-7xl px-6 py-20 lg:px-10">
+    <div class="mb-10 max-w-3xl">
+      <p class="text-xs uppercase tracking-[0.35em] text-xuanor-gold">Recommended ritual objects</p>
+      <h2 class="mt-3 text-3xl text-xuanor-cream md:text-4xl">适合你此刻的三种承接方式</h2>
+      <p class="mt-5 text-base leading-8 text-xuanor-muted">这些推荐不是为了替你解决一切，而是把结果慢慢带进日常：先从主符号认出自己，再用仪式物把感受落下来，最后让氛围与承接物把它留住。</p>
+      {% if secondary_profile %}
+        <p class="mt-4 text-sm leading-7 text-xuanor-muted">你的状态并不只有{{ primary_profile.name }}。它也带着一些{{ secondary_profile.name }}的倾向，所以推荐会优先照顾{{ primary_profile.theme_word }}，同时给{{ secondary_profile.theme_word }}留出一点空间。</p>
+      {% endif %}
     </div>
 
     <div class="grid gap-6 lg:grid-cols-3">
@@ -64,19 +120,66 @@
         <div class="space-y-4">
           <div class="rounded-[1.25rem] border border-white/10 bg-white/[0.02] p-5">
             <p class="text-xs uppercase tracking-[0.35em] text-xuanor-gold">{{ item.role_label }}</p>
+            {% if item.role == 'primary_symbol' %}
+              <p class="mt-3 text-sm leading-7 text-xuanor-muted">先从最容易被看见的入口开始。它不是要求你立刻改变，而是让{{ primary_profile.theme_word }}先拥有一个可以被认出的符号。</p>
+            {% elif item.role == 'ritual_object' %}
+              <p class="mt-3 text-sm leading-7 text-xuanor-muted">当你已经认出自己的状态，接下来需要一个能重复发生的动作，让这种感受不只停留在理解里。</p>
+            {% elif item.role == 'ambient_object' %}
+              <p class="mt-3 text-sm leading-7 text-xuanor-muted">最后把它放进空间、呼吸或触感里，让这条路径在日常里待得更久一点。</p>
+            {% endif %}
             {% if item.mapping.blurb %}
               <p class="mt-3 text-sm leading-7 text-xuanor-muted">{{ item.mapping.blurb }}</p>
             {% else %}
               <p class="mt-3 text-sm leading-7 text-xuanor-muted">这件物品不是在替你解决一切，而是在帮你把{{ primary_profile.theme_word }}带进可重复发生的日常里。</p>
             {% endif %}
           </div>
-          {% include 'includes/product_card.html' with product=item.product %}
+          {% include 'includes/product_card.html' with product=item.product detail_label='查看为什么推荐它' purchase_label='带走这件承接物' %}
         </div>
       {% empty %}
         <div class="rounded-[1.5rem] border border-white/10 bg-white/[0.02] p-8 text-sm leading-7 text-xuanor-muted lg:col-span-3">
           当前结果还没有配置推荐商品。你可以先到后台为这个五行结果补充主符号、仪式物与氛围物。
         </div>
       {% endfor %}
+    </div>
+
+    <div class="mt-12 rounded-[1.75rem] border border-xuanor-gold/20 bg-xuanor-gold/5 p-6 md:p-8">
+      {% if lead_capture_complete %}
+        <p class="text-xs uppercase tracking-[0.35em] text-xuanor-gold">Result follow-up</p>
+        <h3 class="mt-3 text-2xl text-xuanor-cream">你的结果已经为你留好了。</h3>
+        <p class="mt-4 max-w-2xl text-sm leading-7 text-xuanor-muted">后续如果有对应 {{ primary_profile.theme_word }} 路径的内容、仪式建议或推荐更新，我们会通过 {{ submission.respondent_email }} 与你保持连接。</p>
+      {% else %}
+        <p class="text-xs uppercase tracking-[0.35em] text-xuanor-gold">Result follow-up</p>
+        <h3 class="mt-3 text-2xl text-xuanor-cream">如果你愿意，可以把这份结果留给未来的自己。</h3>
+        <p class="mt-4 max-w-2xl text-sm leading-7 text-xuanor-muted">留下邮箱后，后续你可以收到与你这次结果相关的仪式建议、内容延伸与推荐更新。我们不会打断你，只在适合的时候把这条路径递给你。</p>
+        <form method="post" class="mt-8 grid gap-4 md:grid-cols-[0.9fr_1.1fr_auto]">
+          {% csrf_token %}
+          <div>
+            <label for="{{ lead_form.respondent_name.id_for_label }}" class="mb-3 block text-sm text-xuanor-cream">称呼（可选）</label>
+            {{ lead_form.respondent_name }}
+            {% if lead_form.respondent_name.errors %}
+              <div class="mt-3 text-sm text-red-200">
+                {% for error in lead_form.respondent_name.errors %}
+                  <p>{{ error }}</p>
+                {% endfor %}
+              </div>
+            {% endif %}
+          </div>
+          <div>
+            <label for="{{ lead_form.respondent_email.id_for_label }}" class="mb-3 block text-sm text-xuanor-cream">邮箱</label>
+            {{ lead_form.respondent_email }}
+            {% if lead_form.respondent_email.errors %}
+              <div class="mt-3 text-sm text-red-200">
+                {% for error in lead_form.respondent_email.errors %}
+                  <p>{{ error }}</p>
+                {% endfor %}
+              </div>
+            {% endif %}
+          </div>
+          <div class="flex items-end">
+            <button type="submit" class="w-full rounded-full border border-xuanor-gold bg-xuanor-gold px-6 py-3 text-sm text-black transition hover:opacity-90 md:w-auto">保存这份结果</button>
+          </div>
+        </form>
+      {% endif %}
     </div>
 
     <div class="mt-10 flex flex-wrap gap-4">

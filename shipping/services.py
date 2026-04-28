@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 from django.conf import settings
+from django.db import transaction
 from django.utils import timezone
 
 from .models import Shipment, ShipmentEvent
@@ -13,6 +14,95 @@ except ImportError:  # pragma: no cover
 
 class ShippingConfigurationError(Exception):
     pass
+
+
+class ShipmentOpsService:
+    @staticmethod
+    @transaction.atomic
+    def create_manual_shipment(order, *, tracking_number="", carrier_name="", operator_notes=""):
+        if order.payment_status != order.PaymentStatus.PAID:
+            raise ShippingConfigurationError("只有已支付订单才能创建发货单")
+        shipment = Shipment.objects.create(
+            order=order,
+            provider=Shipment.Provider.MANUAL,
+            carrier_name=carrier_name,
+            tracking_number=tracking_number,
+            operator_notes=operator_notes,
+        )
+        ShipmentEvent.objects.create(
+            shipment=shipment,
+            status=shipment.status,
+            message="已创建手动发货单",
+            event_time=timezone.now(),
+            payload={"carrier_name": carrier_name, "tracking_number": tracking_number},
+        )
+        return shipment
+
+    @staticmethod
+    @transaction.atomic
+    def transition(shipment, *, status, message, payload=None, tracking_number=None, carrier_name=None, exception_notes=None):
+        shipment = Shipment.objects.select_related("order").select_for_update().get(pk=shipment.pk)
+        shipment.status = status
+        if tracking_number is not None:
+            shipment.tracking_number = tracking_number
+        if carrier_name is not None:
+            shipment.carrier_name = carrier_name
+        if exception_notes is not None:
+            shipment.exception_notes = exception_notes
+        if status in {Shipment.Status.SHIPPED, Shipment.Status.IN_TRANSIT} and shipment.shipped_at is None:
+            shipment.shipped_at = timezone.now()
+        if status == Shipment.Status.DELIVERED:
+            shipment.delivered_at = timezone.now()
+        shipment.save()
+        shipment.order.sync_fulfillment_from_shipment_status(status)
+        ShipmentEvent.objects.create(
+            shipment=shipment,
+            status=status,
+            message=message,
+            event_time=timezone.now(),
+            payload=payload or {},
+        )
+        return shipment
+
+    @classmethod
+    def mark_shipped(cls, shipment, *, tracking_number="", carrier_name="", operator_notes=""):
+        payload = {"tracking_number": tracking_number, "carrier_name": carrier_name, "operator_notes": operator_notes}
+        return cls.transition(
+            shipment,
+            status=Shipment.Status.SHIPPED,
+            message="已手动标记发货",
+            payload=payload,
+            tracking_number=tracking_number or None,
+            carrier_name=carrier_name or None,
+        )
+
+    @classmethod
+    def mark_delivered(cls, shipment, *, operator_notes=""):
+        return cls.transition(
+            shipment,
+            status=Shipment.Status.DELIVERED,
+            message="已手动标记送达",
+            payload={"operator_notes": operator_notes},
+        )
+
+    @classmethod
+    def mark_exception(cls, shipment, *, exception_notes=""):
+        return cls.transition(
+            shipment,
+            status=Shipment.Status.EXCEPTION,
+            message="已标记物流异常",
+            payload={"exception_notes": exception_notes},
+            exception_notes=exception_notes,
+        )
+
+    @classmethod
+    def cancel(cls, shipment, *, operator_notes=""):
+        return cls.transition(
+            shipment,
+            status=Shipment.Status.CANCELLED,
+            message="已取消发货单",
+            payload={"operator_notes": operator_notes},
+        )
 
 
 class EasyPostService:

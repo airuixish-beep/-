@@ -2,13 +2,14 @@ from datetime import timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
 from payments.models import Payment
 from products.models import Product
 from shipping.models import Shipment, ShipmentEvent
+from transactions.models import RiskAssessment, Transaction
 
 from .models import Order, OrderItem
 
@@ -189,6 +190,53 @@ class OrderDetailTests(TestCase):
         self.assertContains(response, "运输中")
 
 
+class CheckoutRiskObservationTests(TestCase):
+    def setUp(self):
+        self.product = Product.objects.create(
+            name="Checkout Product",
+            slug="checkout-product",
+            sku="SKU-CHECKOUT",
+            price=Decimal("88.00"),
+            currency=Product.Currency.USD,
+            stock_quantity=10,
+            is_active=True,
+            is_purchasable=True,
+        )
+
+    @override_settings(STRIPE_SECRET_KEY="sk_test")
+    @patch("orders.views.create_payment_redirect", return_value="https://payments.example/checkout")
+    def test_checkout_records_pre_payment_risk_observation(self, mock_redirect):
+        response = self.client.post(
+            reverse("orders:checkout", args=[self.product.slug]),
+            {
+                "customer_name": "Ivy",
+                "customer_email": "ivy@example.com",
+                "customer_phone": "123456",
+                "shipping_country": "US",
+                "shipping_state": "CA",
+                "shipping_city": "Los Angeles",
+                "shipping_postal_code": "90001",
+                "shipping_address_line1": "1 Sunset Blvd",
+                "shipping_address_line2": "",
+                "quantity": 1,
+                "payment_provider": Payment.Provider.STRIPE,
+            },
+        )
+
+        payment = Payment.objects.get()
+        transaction_obj = payment.transaction
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], "https://payments.example/checkout")
+        self.assertIsNotNone(transaction_obj)
+        self.assertEqual(transaction_obj.risk_status, Transaction.RiskStatus.ALLOW)
+        self.assertEqual(RiskAssessment.objects.filter(transaction=transaction_obj).count(), 1)
+        self.assertTrue(
+            RiskAssessment.objects.filter(transaction=transaction_obj, payload__phase="pre_payment_checkout").exists()
+        )
+        self.assertEqual(RiskAssessment.objects.get(transaction=transaction_obj).decision, RiskAssessment.Decision.ALLOW)
+        mock_redirect.assert_called_once()
+
+
 class RetryPaymentTests(TestCase):
     def setUp(self):
         self.product = Product.objects.create(
@@ -234,9 +282,18 @@ class RetryPaymentTests(TestCase):
         response = self.client.post(reverse("orders:retry_payment", args=[self.order.public_token]))
 
         self.order.refresh_from_db()
+        latest_payment = self.order.payments.first()
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response["Location"], "https://payments.example/checkout")
         self.assertEqual(self.order.payments.count(), 2)
-        self.assertEqual(self.order.payments.first().status, Payment.Status.PENDING)
+        self.assertEqual(latest_payment.status, Payment.Status.PENDING)
         self.assertEqual(self.order.payment_status, Order.PaymentStatus.PENDING)
+        self.assertEqual(Transaction.objects.count(), 1)
+        self.assertEqual(self.order.payments.first().transaction_id, self.order.payments.last().transaction_id)
+        self.assertEqual(RiskAssessment.objects.filter(transaction=latest_payment.transaction).count(), 1)
+        self.assertTrue(
+            RiskAssessment.objects.filter(transaction=latest_payment.transaction, payload__phase="pre_payment_retry").exists()
+        )
+        self.assertEqual(RiskAssessment.objects.get(transaction=latest_payment.transaction).decision, RiskAssessment.Decision.REVIEW)
+        self.assertEqual(latest_payment.transaction.risk_status, Transaction.RiskStatus.REVIEW)
         mock_redirect.assert_called_once()
