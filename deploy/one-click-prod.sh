@@ -57,10 +57,12 @@ derive_hosts() {
 
 derive_origins() {
   local hosts="$1"
-  python3 - "$hosts" <<'PY'
+  local scheme="$2"
+  python3 - "$hosts" "$scheme" <<'PY'
 import sys
 hosts = [host.strip() for host in sys.argv[1].split(',') if host.strip()]
-print(','.join(f'https://{host}' for host in hosts))
+scheme = sys.argv[2]
+print(','.join(f'{scheme}://{host}' for host in hosts))
 PY
 }
 
@@ -189,6 +191,10 @@ ensure_certificate() {
     exit 1
   }
 
+  if [ "$(realpath "$source_path")" = "$(realpath -m "$target")" ]; then
+    return 0
+  fi
+
   install -m 600 "$source_path" "$target"
 }
 
@@ -198,24 +204,53 @@ prepare_env() {
   ensure_env_file
   backup_env_file
 
-  local existing_domain existing_hosts existing_origins existing_site_url
+  local existing_domain existing_hosts existing_origins existing_site_url existing_tls_enabled
   existing_site_url=$(get_env_value SITE_URL)
   existing_domain=$(extract_domain_from_url "$existing_site_url")
   existing_hosts=$(get_env_value ALLOWED_HOSTS)
   existing_origins=$(get_env_value CSRF_TRUSTED_ORIGINS)
+  existing_tls_enabled=$(get_env_value TLS_ENABLED)
 
   local domain="${SITE_DOMAIN:-$existing_domain}"
   domain=$(prompt_value "站点主域名" "$domain")
   domain=$(normalize_domain "$domain")
   require_value "站点主域名" "$domain"
 
+  local domain_changed=false
+  if [ "$domain" != "$existing_domain" ]; then
+    domain_changed=true
+  fi
+
+  local tls_enabled="${TLS_ENABLED:-$existing_tls_enabled}"
+  if [ -z "$tls_enabled" ]; then
+    tls_enabled="False"
+  fi
+  if is_interactive; then
+    tls_enabled=$(prompt_value "启用 HTTPS 证书 (True/False)" "$tls_enabled")
+  fi
+  case "$tls_enabled" in
+    True|true|1|yes|on)
+      tls_enabled="True"
+      ;;
+    *)
+      tls_enabled="False"
+      ;;
+  esac
+
+  local site_scheme="http"
+  local nginx_conf_file="nginx.http.conf"
+  if [ "$tls_enabled" = "True" ]; then
+    site_scheme="https"
+    nginx_conf_file="nginx.https.conf"
+  fi
+
   local site_url="${SITE_URL_OVERRIDE:-$existing_site_url}"
-  if [ -z "$site_url" ] || [[ "$site_url" != https://* ]]; then
-    site_url="https://$domain"
+  if [ -z "${SITE_URL_OVERRIDE:-}" ] && { [ "$domain_changed" = "true" ] || [ -z "$site_url" ] || [[ "$site_url" != ${site_scheme}://* ]]; }; then
+    site_url="${site_scheme}://$domain"
   fi
 
   local allowed_hosts="${ALLOWED_HOSTS_OVERRIDE:-$existing_hosts}"
-  if [ -z "$allowed_hosts" ]; then
+  if [ -z "${ALLOWED_HOSTS_OVERRIDE:-}" ] && { [ "$domain_changed" = "true" ] || [ -z "$allowed_hosts" ]; }; then
     allowed_hosts=$(derive_hosts "$domain")
   fi
   if is_interactive; then
@@ -224,8 +259,8 @@ prepare_env() {
   require_value "ALLOWED_HOSTS" "$allowed_hosts"
 
   local csrf_trusted_origins="${CSRF_TRUSTED_ORIGINS_OVERRIDE:-$existing_origins}"
-  if [ -z "$csrf_trusted_origins" ]; then
-    csrf_trusted_origins=$(derive_origins "$allowed_hosts")
+  if [ -z "${CSRF_TRUSTED_ORIGINS_OVERRIDE:-}" ] && { [ "$domain_changed" = "true" ] || [ -z "$csrf_trusted_origins" ] || { [ "$site_scheme" = "http" ] && [[ "$csrf_trusted_origins" == https://* ]]; } || { [ "$site_scheme" = "https" ] && [[ "$csrf_trusted_origins" == http://* ]]; }; }; then
+    csrf_trusted_origins=$(derive_origins "$allowed_hosts" "$site_scheme")
   fi
   if is_interactive; then
     csrf_trusted_origins=$(prompt_value "CSRF_TRUSTED_ORIGINS" "$csrf_trusted_origins")
@@ -275,18 +310,38 @@ prepare_env() {
       ;;
   esac
 
+  local secure_ssl_redirect=False
+  local session_cookie_secure=False
+  local csrf_cookie_secure=False
+  local secure_hsts_seconds=0
+  local secure_hsts_include_subdomains=False
+  local secure_hsts_preload=False
+  local proxy_healthcheck_url="${site_scheme}://127.0.0.1/healthz/live"
+
+  if [ "$tls_enabled" = "True" ]; then
+    secure_ssl_redirect=True
+    session_cookie_secure=True
+    csrf_cookie_secure=True
+    secure_hsts_seconds=31536000
+    secure_hsts_include_subdomains=True
+    secure_hsts_preload=True
+  fi
+
   set_env_value DEPLOY_ENV prod
   set_env_value DEBUG False
+  set_env_value TLS_ENABLED "$tls_enabled"
+  set_env_value NGINX_CONF_FILE "$nginx_conf_file"
+  set_env_value PROXY_HEALTHCHECK_URL "$proxy_healthcheck_url"
   set_env_value SECRET_KEY "$secret_key"
   set_env_value ALLOWED_HOSTS "$allowed_hosts"
   set_env_value CSRF_TRUSTED_ORIGINS "$csrf_trusted_origins"
   set_env_value USE_X_FORWARDED_HOST True
-  set_env_value SECURE_SSL_REDIRECT True
-  set_env_value SESSION_COOKIE_SECURE True
-  set_env_value CSRF_COOKIE_SECURE True
-  set_env_value SECURE_HSTS_SECONDS 31536000
-  set_env_value SECURE_HSTS_INCLUDE_SUBDOMAINS True
-  set_env_value SECURE_HSTS_PRELOAD True
+  set_env_value SECURE_SSL_REDIRECT "$secure_ssl_redirect"
+  set_env_value SESSION_COOKIE_SECURE "$session_cookie_secure"
+  set_env_value CSRF_COOKIE_SECURE "$csrf_cookie_secure"
+  set_env_value SECURE_HSTS_SECONDS "$secure_hsts_seconds"
+  set_env_value SECURE_HSTS_INCLUDE_SUBDOMAINS "$secure_hsts_include_subdomains"
+  set_env_value SECURE_HSTS_PRELOAD "$secure_hsts_preload"
   set_env_value SECURE_REFERRER_POLICY same-origin
   set_env_value SECURE_CONTENT_TYPE_NOSNIFF True
   set_env_value SITE_URL "$site_url"
@@ -308,8 +363,10 @@ prepare_env() {
     set_env_value REDIS_URL redis://redis:6379/1
   fi
 
-  ensure_certificate "$FULLCHAIN_TARGET" "fullchain.pem" "${FULLCHAIN_SOURCE:-}"
-  ensure_certificate "$PRIVKEY_TARGET" "privkey.pem" "${PRIVKEY_SOURCE:-}"
+  if [ "$tls_enabled" = "True" ]; then
+    ensure_certificate "$FULLCHAIN_TARGET" "fullchain.pem" "${FULLCHAIN_SOURCE:-}"
+    ensure_certificate "$PRIVKEY_TARGET" "privkey.pem" "${PRIVKEY_SOURCE:-}"
+  fi
 }
 
 run_deploy() {
@@ -326,7 +383,7 @@ print_summary() {
 
 usage() {
   echo "用法: bash deploy/one-click-prod.sh [prepare|deploy]"
-  echo "默认 deploy：准备 .env / 证书后执行 check + deploy + status"
+  echo "默认 deploy：准备 .env 后执行 check + deploy + status；仅 TLS_ENABLED=True 时要求证书"
 }
 
 require_command bash

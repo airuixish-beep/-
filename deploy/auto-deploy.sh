@@ -42,6 +42,10 @@ is_true() {
   esac
 }
 
+tls_enabled() {
+  is_true "${TLS_ENABLED:-False}"
+}
+
 ensure_env() {
   if [ ! -f "$ENV_FILE" ]; then
     local example_file="$PROJECT_DIR/.env.example"
@@ -60,6 +64,19 @@ load_env() {
   set -a
   . "$ENV_FILE"
   set +a
+}
+
+set_proxy_defaults() {
+  if tls_enabled; then
+    : "${NGINX_CONF_FILE:=nginx.https.conf}"
+    : "${PROXY_HEALTHCHECK_URL:=https://127.0.0.1/healthz/live}"
+  else
+    : "${NGINX_CONF_FILE:=nginx.http.conf}"
+    : "${PROXY_HEALTHCHECK_URL:=http://127.0.0.1/healthz/live}"
+  fi
+
+  export NGINX_CONF_FILE
+  export PROXY_HEALTHCHECK_URL
 }
 
 configure_profiles() {
@@ -105,9 +122,9 @@ configure_profiles() {
 }
 
 ensure_prod_requirements() {
-  if [ "${DEPLOY_ENV:-prod}" = "prod" ]; then
-    [ -f "$PROJECT_DIR/deploy/certs/fullchain.pem" ] || { echo "缺少证书文件: deploy/certs/fullchain.pem"; exit 1; }
-    [ -f "$PROJECT_DIR/deploy/certs/privkey.pem" ] || { echo "缺少证书文件: deploy/certs/privkey.pem"; exit 1; }
+  if [ "${DEPLOY_ENV:-prod}" = "prod" ] && tls_enabled; then
+    [ -f "$PROJECT_DIR/deploy/certs/fullchain.pem" ] || { echo "缺少证书文件: deploy/certs/fullchain.pem；如暂不启用 HTTPS，请在 .env 中设置 TLS_ENABLED=False。"; exit 1; }
+    [ -f "$PROJECT_DIR/deploy/certs/privkey.pem" ] || { echo "缺少证书文件: deploy/certs/privkey.pem；如暂不启用 HTTPS，请在 .env 中设置 TLS_ENABLED=False。"; exit 1; }
   fi
 }
 
@@ -117,12 +134,35 @@ validate_env() {
   [ -n "${ALLOWED_HOSTS:-}" ] || { echo "ALLOWED_HOSTS 未配置"; exit 1; }
   [ -n "${CSRF_TRUSTED_ORIGINS:-}" ] || { echo "CSRF_TRUSTED_ORIGINS 未配置"; exit 1; }
   [ -n "${SITE_URL:-}" ] || { echo "SITE_URL 未配置"; exit 1; }
+  [ -n "${NGINX_CONF_FILE:-}" ] || { echo "NGINX_CONF_FILE 未配置"; exit 1; }
+  [ -n "${PROXY_HEALTHCHECK_URL:-}" ] || { echo "PROXY_HEALTHCHECK_URL 未配置"; exit 1; }
   if [ "${DEPLOY_ENV:-prod}" = "prod" ]; then
     [ "${DEBUG:-false}" = "False" ] || [ "${DEBUG:-false}" = "false" ] || { echo "生产环境必须设置 DEBUG=False"; exit 1; }
-    case "${SITE_URL}" in
-      https://*) ;;
-      *) echo "生产环境 SITE_URL 必须使用 https://"; exit 1 ;;
-    esac
+    if tls_enabled; then
+      case "${SITE_URL}" in
+        https://*) ;;
+        *) echo "启用 TLS 时 SITE_URL 必须使用 https://"; exit 1 ;;
+      esac
+      [ "${NGINX_CONF_FILE}" = "nginx.https.conf" ] || { echo "启用 TLS 时 NGINX_CONF_FILE 必须设置为 nginx.https.conf"; exit 1; }
+      case "${PROXY_HEALTHCHECK_URL}" in
+        https://127.0.0.1/*) ;;
+        *) echo "启用 TLS 时 PROXY_HEALTHCHECK_URL 必须使用 https://127.0.0.1/..."; exit 1 ;;
+      esac
+    else
+      case "${SITE_URL}" in
+        http://*) ;;
+        *) echo "关闭 TLS 时 SITE_URL 必须使用 http://"; exit 1 ;;
+      esac
+      [ "${NGINX_CONF_FILE}" = "nginx.http.conf" ] || { echo "关闭 TLS 时 NGINX_CONF_FILE 必须设置为 nginx.http.conf"; exit 1; }
+      case "${PROXY_HEALTHCHECK_URL}" in
+        http://127.0.0.1/*) ;;
+        *) echo "关闭 TLS 时 PROXY_HEALTHCHECK_URL 必须使用 http://127.0.0.1/..."; exit 1 ;;
+      esac
+      is_true "${SECURE_SSL_REDIRECT:-False}" && { echo "关闭 TLS 时必须设置 SECURE_SSL_REDIRECT=False"; exit 1; }
+      is_true "${SESSION_COOKIE_SECURE:-False}" && { echo "关闭 TLS 时必须设置 SESSION_COOKIE_SECURE=False"; exit 1; }
+      is_true "${CSRF_COOKIE_SECURE:-False}" && { echo "关闭 TLS 时必须设置 CSRF_COOKIE_SECURE=False"; exit 1; }
+      [ "${SECURE_HSTS_SECONDS:-0}" = "0" ] || { echo "关闭 TLS 时必须设置 SECURE_HSTS_SECONDS=0"; exit 1; }
+    fi
   fi
 }
 
@@ -184,6 +224,8 @@ verify_site_endpoints() {
 
   wait_for_url "$base_url/"
   wait_for_url "$base_url/admin/"
+  wait_for_url "$base_url/healthz/live"
+  wait_for_url "$base_url/healthz/ready"
   wait_for_url "$base_url/static/admin/css/base.css"
 }
 
@@ -248,6 +290,7 @@ case "$MODE" in
     ensure_env_file_path
     ensure_env
     load_env
+    set_proxy_defaults
     configure_profiles
     ensure_prod_requirements
     validate_env
@@ -276,6 +319,7 @@ case "$MODE" in
     ensure_env_file_path
     ensure_env
     load_env
+    set_proxy_defaults
     configure_profiles
     validate_env
     validate_compose_config
@@ -293,6 +337,7 @@ case "$MODE" in
     ensure_env_file_path
     ensure_env
     load_env
+    set_proxy_defaults
     configure_profiles
     validate_env
     validate_compose_config
@@ -310,6 +355,7 @@ case "$MODE" in
     ensure_env_file_path
     ensure_env
     load_env
+    set_proxy_defaults
     configure_profiles
     run_release_steps
     ;;
@@ -318,6 +364,7 @@ case "$MODE" in
     ensure_env_file_path
     ensure_env
     load_env
+    set_proxy_defaults
     configure_profiles
     ensure_prod_requirements
     validate_env
@@ -329,6 +376,7 @@ case "$MODE" in
     ensure_env_file_path
     ensure_env
     load_env
+    set_proxy_defaults
     configure_profiles
     shift
     [ "$#" -gt 0 ] || { echo "用法: bash deploy/auto-deploy.sh exec <command>"; exit 1; }
@@ -339,6 +387,7 @@ case "$MODE" in
     ensure_env_file_path
     ensure_env
     load_env
+    set_proxy_defaults
     configure_profiles
     compose_cmd ps
     ;;
@@ -347,6 +396,7 @@ case "$MODE" in
     ensure_env_file_path
     ensure_env
     load_env
+    set_proxy_defaults
     configure_profiles
     compose_cmd logs -f --tail=100
     ;;
@@ -355,6 +405,7 @@ case "$MODE" in
     ensure_env_file_path
     ensure_env
     load_env
+    set_proxy_defaults
     configure_profiles
     compose_cmd restart
     compose_cmd ps
@@ -364,6 +415,7 @@ case "$MODE" in
     ensure_env_file_path
     ensure_env
     load_env
+    set_proxy_defaults
     configure_profiles
     compose_cmd down
     ;;
@@ -372,6 +424,7 @@ case "$MODE" in
     ensure_env_file_path
     ensure_env
     load_env
+    set_proxy_defaults
     configure_profiles
     compose_cmd down -v --remove-orphans
     ;;

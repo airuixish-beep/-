@@ -43,10 +43,17 @@ bash deploy/auto-deploy.sh deploy
 ```env
 DEPLOY_ENV=prod
 DEBUG=False
+TLS_ENABLED=False
+NGINX_CONF_FILE=nginx.http.conf
+PROXY_HEALTHCHECK_URL=http://127.0.0.1/healthz/live
 SECRET_KEY=<强随机值>
 ALLOWED_HOSTS=xuanor.com,www.xuanor.com
-CSRF_TRUSTED_ORIGINS=https://xuanor.com,https://www.xuanor.com
-SITE_URL=https://www.xuanor.com
+CSRF_TRUSTED_ORIGINS=http://xuanor.com,http://www.xuanor.com
+SITE_URL=http://www.xuanor.com
+SECURE_SSL_REDIRECT=False
+SESSION_COOKIE_SECURE=False
+CSRF_COOKIE_SECURE=False
+SECURE_HSTS_SECONDS=0
 WEB_PORT=8000
 DB_ENGINE=mysql
 DB_NAME=xuanor
@@ -61,12 +68,12 @@ REDIS_URL=redis://redis:6379/1
 ```
 
 ### 证书文件
-生产部署脚本要求以下文件存在：
+当 `TLS_ENABLED=False` 时，不需要准备证书。
+
+只有切换到 HTTPS 模式时才需要：
 
 - `deploy/certs/fullchain.pem`
 - `deploy/certs/privkey.pem`
-
-如果不存在，部署会失败。
 
 ## 推荐恢复步骤
 
@@ -80,18 +87,26 @@ dig +short www.xuanor.com
 返回真实公网入口，而不是 `198.18.*.*`。
 
 ### 2. 准备生产 .env
-基于 `.env.example` 生成正式配置，重点确认：
+基于 `.env.production.example` 生成正式配置，重点确认：
 
 - `DEBUG=False`
-- `ALLOWED_HOSTS`
+- `TLS_ENABLED=False`
+- `NGINX_CONF_FILE=nginx.http.conf`
 - `CSRF_TRUSTED_ORIGINS`
-- `SITE_URL=https://www.xuanor.com`
+- `SITE_URL=http://www.xuanor.com`
 
-### 3. 准备证书
-把证书放到：
+### 3. 准备证书（仅 HTTPS 模式）
+如果要切到 HTTPS，再把证书放到：
 
 - `deploy/certs/fullchain.pem`
 - `deploy/certs/privkey.pem`
+
+并把 `.env` 改成：
+
+- `TLS_ENABLED=True`
+- `NGINX_CONF_FILE=nginx.https.conf`
+- `PROXY_HEALTHCHECK_URL=https://127.0.0.1/healthz/live`
+- `SITE_URL=https://www.xuanor.com`
 
 ### 4. 执行部署
 
@@ -101,24 +116,30 @@ bash deploy/auto-deploy.sh deploy
 
 ### 5. 部署后验证
 
+HTTP-only 模式：
+
 ```bash
 bash deploy/auto-deploy.sh status
 bash deploy/auto-deploy.sh logs
-curl -I https://www.xuanor.com/
-curl -I https://www.xuanor.com/admin/
-curl -I https://www.xuanor.com/static/admin/css/base.css
+curl -I http://www.xuanor.com/
+curl -I http://www.xuanor.com/admin/
+curl -I http://www.xuanor.com/static/admin/css/base.css
+curl -I http://www.xuanor.com/healthz/live
+curl -I http://www.xuanor.com/healthz/ready
 ```
 
-脚本自身会在部署流程内验证首页、后台和静态资源；上面的命令用于二次复核。
+HTTPS 模式把上面的 `http://` 换成 `https://` 即可。
+
+脚本自身会在部署流程内验证首页、后台、健康检查和静态资源；上面的命令用于二次复核。
 
 ## 如果部署后仍打不开
 按顺序检查：
 
 1. `bash deploy/auto-deploy.sh status`
 2. `bash deploy/auto-deploy.sh logs`
-3. `curl -I https://www.xuanor.com/healthz/live`
+3. `curl -I http://www.xuanor.com/healthz/live` 或对应的 `https://`
 4. 80/443 是否监听
-5. 证书路径是否挂载成功
+5. 仅 HTTPS 模式下再检查证书路径是否挂载成功
 6. DNS 是否仍然指错
 7. CDN 是否回源失败
 

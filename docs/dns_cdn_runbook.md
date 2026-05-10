@@ -92,7 +92,12 @@ bash deploy/auto-deploy.sh logs
 ---
 
 ## 4. 证书 / TLS 检查
-检查证书文件是否存在：
+先确认当前是不是 HTTPS 模式：
+
+- `TLS_ENABLED=False`：这一步可以跳过，按 HTTP-only 模式排查
+- `TLS_ENABLED=True`：继续检查证书与 443
+
+HTTPS 模式下检查证书文件是否存在：
 
 ```bash
 ls -l deploy/certs/fullchain.pem
