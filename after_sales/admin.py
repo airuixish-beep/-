@@ -98,17 +98,117 @@ def create_resend_shipment(modeladmin, request, queryset):
 
 @admin.register(AfterSalesCase)
 class AfterSalesCaseAdmin(admin.ModelAdmin):
-    list_display = ("case_no", "order", "case_type", "status", "refund", "shipment", "created_at")
+    list_display = (
+        "case_no",
+        "order_number",
+        "case_type",
+        "status",
+        "customer_summary",
+        "refund",
+        "shipment",
+        "created_at",
+    )
     list_filter = ("case_type", "status", "created_at")
     search_fields = ("case_no", "order__order_number", "reason", "customer_message")
-    readonly_fields = ("case_no", "created_at", "updated_at")
+    readonly_fields = (
+        "case_no",
+        "order_customer",
+        "linked_chat_session",
+        "created_at",
+        "updated_at",
+    )
+    autocomplete_fields = ("order", "shipment", "refund", "chat_session")
     inlines = [AfterSalesEventInline]
     actions = [mark_processing, mark_resolved, mark_closed, create_refund_request, create_resend_shipment]
+    fieldsets = (
+        (
+            "售后概览",
+            {
+                "fields": (
+                    "case_no",
+                    "order",
+                    "order_customer",
+                    "case_type",
+                    "status",
+                    "linked_chat_session",
+                )
+            },
+        ),
+        ("客户诉求", {"fields": ("reason", "customer_message", "internal_notes", "resolution_summary")}),
+        ("关联处理链路", {"fields": ("refund", "shipment")}),
+        ("时间与审计", {"classes": ("collapse",), "fields": ("created_at", "updated_at")}),
+    )
+    list_select_related = ("order", "refund", "shipment", "chat_session")
+    date_hierarchy = "created_at"
+    save_on_top = True
+
+    def changelist_view(self, request, extra_context=None):
+        return super().changelist_view(
+            request,
+            extra_context={
+                **(extra_context or {}),
+                "title": "After-sales",
+                "subtitle": "处理售后单、补发协作与退款联动。",
+            },
+        )
+
+    def add_view(self, request, form_url="", extra_context=None):
+        return super().add_view(
+            request,
+            form_url,
+            extra_context={
+                **(extra_context or {}),
+                "title": "新增售后单",
+                "subtitle": "录入售后类型、客户诉求和关联订单。",
+            },
+        )
+
+    def change_view(self, request, object_id, form_url="", extra_context=None):
+        return super().change_view(
+            request,
+            object_id,
+            form_url,
+            extra_context={
+                **(extra_context or {}),
+                "title": "编辑售后单",
+                "subtitle": "维护售后状态、客户诉求、退款与补发信息。",
+            },
+        )
+
+    @admin.display(description="订单号", ordering="order__order_number")
+    def order_number(self, obj):
+        return obj.order.order_number
+
+    @admin.display(description="客户")
+    def customer_summary(self, obj):
+        return f"{obj.order.customer_name} / {obj.order.customer_email}"
+
+    @admin.display(description="客户信息")
+    def order_customer(self, obj):
+        return f"{obj.order.customer_name} / {obj.order.customer_email} / {obj.order.customer_phone or '-'}"
+
+    @admin.display(description="关联会话")
+    def linked_chat_session(self, obj):
+        if not obj.chat_session_id:
+            return "-"
+        return str(obj.chat_session)
 
 
 @admin.register(AfterSalesEvent)
 class AfterSalesEventAdmin(admin.ModelAdmin):
-    list_display = ("case", "event_type", "message", "created_at")
+    list_display = ("case", "order_number", "event_type", "message", "created_at")
     list_filter = ("event_type", "created_at")
-    search_fields = ("case__case_no", "message")
+    search_fields = ("case__case_no", "case__order__order_number", "message")
     readonly_fields = ("payload", "created_at")
+    autocomplete_fields = ("case",)
+    fieldsets = (
+        ("事件概览", {"fields": ("case", "event_type", "message")}),
+        ("事件数据", {"classes": ("collapse",), "fields": ("payload", "created_at")}),
+    )
+    list_select_related = ("case__order",)
+    date_hierarchy = "created_at"
+    save_on_top = True
+
+    @admin.display(description="订单号", ordering="case__order__order_number")
+    def order_number(self, obj):
+        return obj.case.order.order_number

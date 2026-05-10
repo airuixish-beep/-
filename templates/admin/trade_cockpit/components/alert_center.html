@@ -1,0 +1,52 @@
+<section class="module x-admin-risk-panel">
+  <div class="x-admin-tactical-tag">Tactical Stream / Alerts</div>
+  <div class="x-admin-panel-header">
+    <div class="x-admin-panel-title-group">
+      <h2 class="x-admin-panel-title">预警中心</h2>
+      <p class="x-admin-panel-copy">按红黄分级优先识别 block / review 风控与支付异常信号。</p>
+    </div>
+  </div>
+  <div class="x-admin-alert-console-head" aria-hidden="true">
+    <span class="x-admin-alert-console-dot is-critical"></span>
+    <span class="x-admin-alert-console-dot is-review"></span>
+    <span class="x-admin-alert-console-dot is-safe"></span>
+    <span class="x-admin-alert-console-line"></span>
+  </div>
+  <div class="x-admin-dual-stat x-admin-alert-stat-grid">
+    <div class="summary-card x-admin-alert-stat is-review">
+      <h3>Review</h3>
+      <p class="x-admin-kpi-value">{{ risk_summary.review_count }}</p>
+      <span>需人工复核</span>
+    </div>
+    <div class="summary-card x-admin-alert-stat is-critical">
+      <h3>Block</h3>
+      <p class="x-admin-kpi-value">{{ risk_summary.block_count }}</p>
+      <span>高优先阻断</span>
+    </div>
+  </div>
+  <div class="subsection x-admin-alert-briefing">
+    <h3>活跃预警</h3>
+    <ul class="compact-list">
+      <li>总预警：{{ alerts|length }}</li>
+      <li>优先处理 block，再复核 review 交易。</li>
+    </ul>
+  </div>
+  <div class="x-admin-risk-stack">
+    {% for alert in alerts %}
+      <article class="summary-card x-admin-risk-item{% if alert.decision == 'block' %} is-critical{% elif alert.decision == 'review' %} is-review{% endif %}">
+        <div class="x-admin-risk-headline">
+          <span class="x-admin-risk-level">{% if alert.decision == 'block' %}RED{% elif alert.decision == 'review' %}YELLOW{% else %}INFO{% endif %}</span>
+          <span class="x-admin-risk-decision">{{ alert.decision }}</span>
+        </div>
+        <div class="status-meta">
+          <strong>{{ alert.transaction.order.order_number }}</strong>
+          <span>风险分 {{ alert.score }}</span>
+        </div>
+        <div class="x-admin-risk-phase">{{ alert.payload.phase|default:'risk' }}</div>
+        <div class="x-admin-field-note">{% if alert.decision == 'block' %}立即阻断并复核支付链路。{% elif alert.decision == 'review' %}进入人工复核队列。{% else %}持续观察交易信号。{% endif %}</div>
+      </article>
+    {% empty %}
+      <div class="x-admin-empty">暂无预警。</div>
+    {% endfor %}
+  </div>
+</section>

@@ -1,0 +1,9 @@
+<section class="x-admin-kpi-grid">
+  {% for card in kpi_cards %}
+    <div class="module x-admin-kpi-card">
+      <div class="x-admin-kpi-label">{{ card.label }}</div>
+      <div class="x-admin-kpi-value">{{ card.value }}</div>
+      <div class="x-admin-kpi-hint">{{ card.hint }}</div>
+    </div>
+  {% endfor %}
+</section>

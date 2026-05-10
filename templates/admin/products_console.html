@@ -1,0 +1,87 @@
+{% extends "admin/_xuanor_shell.html" %}
+
+{% block x_admin_content %}
+<div class="x-admin-custom-page-grid x-admin-products-grid">
+  <section class="module x-admin-custom-page-hero">
+    <div class="x-admin-custom-page-hero-copy">
+      <div class="x-admin-tactical-tag">Strategic Entry / Products</div>
+      <div class="x-admin-panel-title-group">
+        <h2 class="x-admin-panel-title">商品控制台入口</h2>
+        <p class="x-admin-panel-copy">先看商品主档、SKU、类目结构和库存波动，再下钻到原生 Product Admin 做具体维护与执行。</p>
+      </div>
+      <div class="x-admin-home-hero-actions">
+        <a class="x-admin-button is-primary" href="{% url 'admin:products_product_add' %}">新增商品</a>
+        <a class="x-admin-button" href="{% url 'admin:products_category_add' %}">新增商品类目</a>
+        <a class="x-admin-button" href="{% url 'admin:products_inventoryrecord_changelist' %}">库存流水</a>
+      </div>
+    </div>
+    <div class="x-admin-custom-page-status-stack">
+      {% for metric in product_console_metrics %}
+      <div class="trade-cockpit-command-cell {{ metric.variant }}">
+        <span>{{ metric.label }}</span>
+        <strong>{{ metric.value }}</strong>
+        <small>{{ metric.detail }}</small>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="module x-admin-custom-page-section-card">
+    <div class="x-admin-panel-header">
+      <div class="x-admin-panel-title-group">
+        <h2 class="x-admin-panel-title">库存与可售状态</h2>
+        <p class="x-admin-panel-copy">把低库存、缺货和最近库存动作压成一组商品健康信号。</p>
+      </div>
+    </div>
+    <div class="x-admin-custom-page-link-grid">
+      {% for item in product_warning_items %}
+      <article class="x-admin-home-route-card">
+        <span>0{{ forloop.counter }}</span>
+        <strong>{{ item.label }}</strong>
+        <small>{{ item.value }} · {{ item.detail }}</small>
+      </article>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="module x-admin-custom-page-section-card">
+    <div class="x-admin-panel-header">
+      <div class="x-admin-panel-title-group">
+        <h2 class="x-admin-panel-title">商品结构焦点</h2>
+        <p class="x-admin-panel-copy">快速判断商品可售覆盖、SKU 密度和类目热区。</p>
+      </div>
+    </div>
+    <div class="x-admin-custom-page-link-grid">
+      {% for card in product_focus_cards %}
+      <article class="x-admin-home-route-card">
+        <span>0{{ forloop.counter }}</span>
+        <strong>{{ card.title }}</strong>
+        <small>{{ card.detail }}</small>
+      </article>
+      {% endfor %}
+    </div>
+  </section>
+
+  <div class="x-admin-custom-page-sections">
+    {% for section in product_operations_sections %}
+    <section class="module x-admin-custom-page-section-card">
+      <div class="x-admin-panel-header">
+        <div class="x-admin-panel-title-group">
+          <h2 class="x-admin-panel-title">{{ section.title }}</h2>
+          <p class="x-admin-panel-copy">{{ section.description }}</p>
+        </div>
+      </div>
+      <div class="x-admin-custom-page-link-grid">
+        {% for link in section.links %}
+        <a class="x-admin-home-route-card" href="{{ link.url }}">
+          <span>0{{ forloop.counter }}</span>
+          <strong>{{ link.label }}</strong>
+          <small>{{ section.title }}入口</small>
+        </a>
+        {% endfor %}
+      </div>
+    </section>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,429 @@
+{% extends "admin/_xuanor_shell.html" %}
+
+{% block x_admin_content %}
+<div class="x-admin-custom-page-grid x-admin-payments-grid x-admin-traffic-grid">
+  <section class="module x-admin-custom-page-hero">
+    <div class="x-admin-custom-page-hero-copy">
+      <div class="x-admin-tactical-tag">Strategic Entry / Traffic Hub</div>
+      <div class="x-admin-panel-title-group">
+        <h2 class="x-admin-panel-title">流量中枢</h2>
+        <p class="x-admin-panel-copy">当前范围：{{ filters.label }} · {{ filters.currency_label }}。先看测试提交携带的来源、介质、活动和线索沉淀，再决定去经营分析、五行测试还是客户协同继续执行。</p>
+      </div>
+      <div class="x-admin-home-hero-actions">
+        <a class="x-admin-button is-primary" href="{% url 'analytics_dashboard:index' %}">经营分析</a>
+        <a class="x-admin-button" href="{% url 'analytics_dashboard:quiz' %}">五行测试</a>
+        <a class="x-admin-button" href="{{ submission_all_url }}">当前提交</a>
+      </div>
+    </div>
+    <div class="x-admin-custom-page-status-stack">
+      {% for item in traffic_overview %}
+      <div class="x-admin-home-command-box {{ item.variant }}">
+        <span>{{ item.label }}</span>
+        <strong>{{ item.title }}</strong>
+        <small>{{ item.detail }}</small>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="module dashboard-toolbar x-admin-callout trade-cockpit-command-bar">
+    <div class="trade-cockpit-command-layout">
+      <div class="trade-cockpit-command-brief">
+        <div class="x-admin-panel-title-group">
+          <h2 class="x-admin-panel-title">流量筛选</h2>
+          <p class="x-admin-panel-copy">当前口径是五行测试提交归因视角，不代表全站流量平台或广告花费报表。</p>
+        </div>
+        <div class="x-admin-radar-headline">
+          <span>Traffic Hub</span>
+          <span>{{ filters.label }}</span>
+          <span>{{ filters.currency_label }}</span>
+        </div>
+      </div>
+      <form method="get" class="x-admin-filter-form trade-cockpit-command-form">
+        <div class="field-group">
+          <label for="id_range">时间范围</label>
+          <select name="range" id="id_range">
+            {% for value, label in range_options %}
+            <option value="{{ value }}" {% if filters.range_key == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field-group">
+          <label for="id_currency">币种</label>
+          <select name="currency" id="id_currency">
+            {% for value, label in currency_options %}
+            <option value="{{ value }}" {% if filters.currency == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field-group">
+          <label for="id_start_date">开始日期</label>
+          <input type="date" name="start_date" id="id_start_date" value="{{ filters.start_date|date:'Y-m-d' }}">
+        </div>
+        <div class="field-group">
+          <label for="id_end_date">结束日期</label>
+          <input type="date" name="end_date" id="id_end_date" value="{{ filters.end_date|date:'Y-m-d' }}">
+        </div>
+        <div class="actions">
+          <button type="submit" class="button default">更新流量态势</button>
+          <a href="{% url 'analytics_dashboard:traffic' %}" class="button">重置筛选</a>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <div class="trade-cockpit-command-metrics x-admin-custom-page-command-grid">
+    {% for metric in traffic_command_metrics %}
+    <article class="trade-cockpit-command-cell {{ metric.variant }}">
+      <span>{{ metric.label }}</span>
+      <strong>{{ metric.value }}</strong>
+      <small>{{ metric.detail }}</small>
+    </article>
+    {% endfor %}
+  </div>
+
+  <section class="module x-admin-traffic-situation-panel">
+    <div class="x-admin-traffic-situation-head">
+      <div class="x-admin-panel-title-group">
+        <div class="x-admin-radar-headline">
+          <span>Traffic Situation</span>
+          <span>{{ traffic_situation.window_label }}</span>
+        </div>
+        <h2 class="x-admin-panel-title">{{ traffic_situation.title }}</h2>
+        <p class="x-admin-panel-copy">{{ traffic_situation.subtitle }}</p>
+      </div>
+      <div class="x-admin-traffic-situation-strip">
+        {% for metric in traffic_situation.summary_metrics %}
+        <article class="x-admin-home-signal-card {% cycle 'is-cyan' 'is-violet' 'is-danger' %}">
+          <span>{{ metric.label }}</span>
+          <strong>{{ metric.value }}</strong>
+          <small>{{ metric.detail }}</small>
+        </article>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="x-admin-traffic-situation-stage">
+      <div class="x-admin-traffic-situation-chart">
+        <svg class="x-admin-traffic-situation-svg" viewBox="0 0 {{ traffic_situation.svg.width }} {{ traffic_situation.svg.height }}" role="img" aria-label="流量态势趋势图">
+          <defs>
+            <linearGradient id="trafficSubmissionLine" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stop-color="rgba(110, 245, 255, 0.9)"></stop>
+              <stop offset="100%" stop-color="rgba(45, 224, 255, 1)"></stop>
+            </linearGradient>
+            <linearGradient id="trafficLeadLine" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stop-color="rgba(154, 118, 255, 0.92)"></stop>
+              <stop offset="100%" stop-color="rgba(125, 124, 255, 1)"></stop>
+            </linearGradient>
+          </defs>
+          <g class="x-admin-traffic-situation-grid">
+            <line x1="44" y1="26" x2="44" y2="{{ traffic_situation.svg.plot_bottom }}"></line>
+            <line x1="44" y1="{{ traffic_situation.svg.plot_bottom }}" x2="716" y2="{{ traffic_situation.svg.plot_bottom }}"></line>
+            <line x1="44" y1="80" x2="716" y2="80"></line>
+            <line x1="44" y1="134" x2="716" y2="134"></line>
+            <line x1="44" y1="188" x2="716" y2="188"></line>
+          </g>
+          {% if traffic_situation.svg.submission_path %}
+          <path class="x-admin-traffic-situation-path is-submission" d="{{ traffic_situation.svg.submission_path }}"></path>
+          {% endif %}
+          {% if traffic_situation.svg.lead_path %}
+          <path class="x-admin-traffic-situation-path is-lead" d="{{ traffic_situation.svg.lead_path }}"></path>
+          {% endif %}
+          {% for row in traffic_situation.svg.points %}
+          <g class="x-admin-traffic-situation-point-cluster">
+            <circle class="x-admin-traffic-situation-point is-submission" cx="{{ row.x }}" cy="{{ row.submission_y }}" r="4"></circle>
+            <circle class="x-admin-traffic-situation-point is-lead" cx="{{ row.x }}" cy="{{ row.lead_y }}" r="3.2"></circle>
+          </g>
+          {% endfor %}
+          {% for axis in traffic_situation.svg.axis_labels %}
+          <text class="x-admin-traffic-situation-axis-label" x="{{ axis.x }}" y="248" text-anchor="middle">{{ axis.label }}</text>
+          {% endfor %}
+        </svg>
+        <div class="x-admin-traffic-situation-overlay">
+          <span>{{ traffic_situation.overlay.peak_label }}</span>
+          <span>{{ traffic_situation.overlay.current_label }}</span>
+        </div>
+        <div class="x-admin-traffic-situation-legend">
+          {% for item in traffic_situation.legend %}
+          <span class="{{ item.variant }}">{{ item.label }}</span>
+          {% endfor %}
+        </div>
+      </div>
+      <aside class="x-admin-traffic-situation-sidepanel">
+        <div class="x-admin-traffic-pressure-stack">
+          {% for item in traffic_situation.pressure_bars %}
+          <article class="x-admin-traffic-pressure-card {{ item.variant }}">
+            <div class="x-admin-traffic-pressure-topline">
+              <span>{{ item.label }}</span>
+              <strong>{{ item.count }}</strong>
+            </div>
+            <div class="x-admin-traffic-pressure-bar"><span style="width: {{ item.width }}%"></span></div>
+            <small>{{ item.hint }}</small>
+          </article>
+          {% endfor %}
+        </div>
+        <div class="x-admin-traffic-intel-grid">
+          {% for item in traffic_situation.intel_cards %}
+          <article class="x-admin-home-command-box {% cycle 'is-cyan' 'is-violet' 'is-danger' %}">
+            <span>{{ item.label }}</span>
+            <strong>{{ item.value }}</strong>
+            <small>{{ item.detail }}</small>
+          </article>
+          {% endfor %}
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <div class="x-admin-traffic-theater">
+    <section class="module x-admin-traffic-primary">
+      <div class="x-admin-panel-header">
+        <div class="x-admin-panel-title-group">
+          <h2 class="x-admin-panel-title">来源 / 介质 / 活动主视图</h2>
+          <p class="x-admin-panel-copy">把 source、medium、campaign 放在同一页内看，优先判断当前线索沉淀的流量结构。</p>
+        </div>
+        <div class="panel-actions"><a class="x-admin-panel-action" href="{{ submission_all_url }}">查看对应提交</a></div>
+      </div>
+      <div class="x-admin-trend-chart-card x-admin-traffic-trend-card">
+        <div class="x-admin-panel-title-group">
+          <h3>每日提交 / 留资节奏</h3>
+          <p class="x-admin-panel-copy">先看每天的测试提交与留资沉淀，再判断当前流量质量是否稳定。</p>
+        </div>
+        <table class="chart-table">
+          <thead>
+            <tr>
+              <th>日期</th>
+              <th>提交节奏</th>
+              <th>提交数</th>
+              <th>留资节奏</th>
+              <th>留资数</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in traffic_trends.rows %}
+            <tr>
+              <td>{{ row.date_label }}</td>
+              <td><div class="bar-track"><div class="bar-fill" style="width: {{ row.submission_width }}%"></div></div></td>
+              <td>{{ row.submission_count }}</td>
+              <td><div class="bar-track"><div class="bar-fill secondary" style="width: {{ row.lead_width }}%"></div></div></td>
+              <td>{{ row.lead_count }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" class="muted">当前时间范围暂无提交趋势数据。</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="x-admin-traffic-attribution-headcards">
+        {% for item in traffic_attribution_matrix.headline_cards %}
+        <article class="x-admin-home-command-box {{ item.variant }}">
+          <span>{{ item.label }}</span>
+          <strong>{{ item.value }}</strong>
+          <small>{{ item.detail }}</small>
+        </article>
+        {% endfor %}
+      </div>
+      <div class="x-admin-traffic-attribution-matrix">
+        {% for lane in traffic_attribution_matrix.lanes %}
+        <section class="x-admin-traffic-attribution-lane {{ lane.variant }}">
+          <header>
+            <span>{{ lane.label }}</span>
+            <strong>{{ lane.headline }}</strong>
+            <small>{{ lane.detail }}</small>
+          </header>
+          <div class="x-admin-traffic-attribution-rows">
+            {% for row in lane.rows %}
+            <article class="x-admin-traffic-attribution-row">
+              <div>
+                <strong>{{ row.label }}</strong>
+                <small>{{ row.value|default:'未标记' }}</small>
+              </div>
+              <span>{{ row.count }}</span>
+            </article>
+            {% empty %}
+            <article class="x-admin-traffic-attribution-row is-empty">
+              <div>
+                <strong>暂无数据</strong>
+                <small>{{ lane.empty_label }}</small>
+              </div>
+            </article>
+            {% endfor %}
+          </div>
+        </section>
+        {% endfor %}
+      </div>
+      <div class="x-admin-traffic-semantics">
+        <article class="x-admin-home-route-card">
+          <span>01</span>
+          <strong>流量口径</strong>
+          <small>{{ traffic_semantics.scope }}</small>
+        </article>
+      </div>
+    </section>
+
+    <aside class="module x-admin-traffic-side-rail x-admin-traffic-intelligence-panel">
+      <div class="x-admin-panel-header">
+        <div class="x-admin-panel-title-group">
+          <h2 class="x-admin-panel-title">线索情报</h2>
+          <p class="x-admin-panel-copy">把高频留资、未留资窗口和最近提交压缩成一块分诊面板，方便决定下一步跟进优先级。</p>
+        </div>
+      </div>
+      <div class="x-admin-traffic-intelligence-cards">
+        {% for item in traffic_intelligence.triage_cards %}
+        <article class="x-admin-home-command-box {{ item.variant }}">
+          <span>{{ item.label }}</span>
+          <strong>{{ item.value }}</strong>
+          <small>{{ item.detail }}</small>
+        </article>
+        {% endfor %}
+      </div>
+      <div class="x-admin-traffic-intelligence-block">
+        <div class="x-admin-traffic-intelligence-heading">
+          <h3>高频留资邮箱</h3>
+          <small>优先联系重复出现的线索。</small>
+        </div>
+        <div class="x-admin-traffic-dispatch-list">
+          {% for row in traffic_intelligence.lead_rows %}
+          <article class="x-admin-traffic-dispatch-item">
+            <div>
+              <strong>{{ row.title }}</strong>
+              <small>{{ row.subtitle }}</small>
+            </div>
+            <span>{{ row.metric }}</span>
+          </article>
+          {% empty %}
+          <article class="x-admin-traffic-dispatch-item is-empty">
+            <div>
+              <strong>暂无留资邮箱</strong>
+              <small>当前时间范围暂无可跟进邮箱。</small>
+            </div>
+          </article>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="x-admin-traffic-intelligence-block">
+        <div class="x-admin-traffic-intelligence-heading">
+          <h3>最近提交流转</h3>
+          <small>快速识别是线索还是仅观察样本。</small>
+        </div>
+        <div class="x-admin-traffic-dispatch-list">
+          {% for row in traffic_intelligence.dispatch_rows %}
+          <article class="x-admin-traffic-dispatch-item">
+            <div>
+              <strong>{{ row.title }}</strong>
+              <small>{{ row.subtitle }}</small>
+            </div>
+            <span>{{ row.metric }}</span>
+          </article>
+          {% empty %}
+          <article class="x-admin-traffic-dispatch-item is-empty">
+            <div>
+              <strong>暂无提交记录</strong>
+              <small>当前时间范围暂无最近提交。</small>
+            </div>
+          </article>
+          {% endfor %}
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <div class="x-admin-panel-grid trade-cockpit-tactical-grid">
+    <section class="module x-admin-custom-page-section-card">
+      <div class="x-admin-panel-header">
+        <div class="x-admin-panel-title-group">
+          <h2 class="x-admin-panel-title">线索沉淀结果</h2>
+          <p class="x-admin-panel-copy">从提交、留资和结果分布判断当前这波流量是否值得继续追踪。</p>
+        </div>
+      </div>
+      <div class="x-admin-traffic-result-summary-grid">
+        {% for card in traffic_result_zone.summary_cards %}
+        <article class="x-admin-home-command-box {{ card.variant }}">
+          <span>{{ card.label }}</span>
+          <strong>{{ card.value }}</strong>
+          <small>{{ card.detail }}</small>
+        </article>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="module x-admin-custom-page-section-card">
+      <div class="x-admin-panel-header">
+        <div class="x-admin-panel-title-group">
+          <h2 class="x-admin-panel-title">主导结果热区</h2>
+          <p class="x-admin-panel-copy">看不同来源沉淀出来的主导五行结果集中在哪些类型。</p>
+        </div>
+      </div>
+      <div class="x-admin-traffic-result-heat-grid">
+        {% for row in traffic_result_zone.result_rows %}
+        <article class="x-admin-traffic-result-heat-card {{ row.variant }}">
+          <span>0{{ forloop.counter }}</span>
+          <strong>{{ row.label }}</strong>
+          <small>{{ row.count }} 次主导结果</small>
+        </article>
+        {% empty %}
+        <article class="x-admin-traffic-result-heat-card is-empty">
+          <span>01</span>
+          <strong>暂无结果数据</strong>
+          <small>当前筛选范围暂无主导结果统计。</small>
+        </article>
+        {% endfor %}
+      </div>
+    </section>
+  </div>
+
+  <section class="module x-admin-custom-page-section-card x-admin-traffic-routing-panel">
+    <div class="x-admin-panel-header">
+      <div class="x-admin-panel-title-group">
+        <h2 class="x-admin-panel-title">{{ traffic_conversion_routes.title }}</h2>
+        <p class="x-admin-panel-copy">{{ traffic_conversion_routes.description }}</p>
+      </div>
+    </div>
+    <div class="x-admin-traffic-routing-grid">
+      <a class="x-admin-traffic-routing-card {{ traffic_conversion_routes.routes.0.variant }}" href="{{ submission_all_url }}">
+        <span>01</span>
+        <strong>{{ traffic_conversion_routes.routes.0.label }}</strong>
+        <small>{{ traffic_conversion_routes.routes.0.detail }}</small>
+      </a>
+      <a class="x-admin-traffic-routing-card {{ traffic_conversion_routes.routes.1.variant }}" href="{{ submission_has_email_url }}">
+        <span>02</span>
+        <strong>{{ traffic_conversion_routes.routes.1.label }}</strong>
+        <small>{{ traffic_conversion_routes.routes.1.detail }}</small>
+      </a>
+      <a class="x-admin-traffic-routing-card {{ traffic_conversion_routes.routes.2.variant }}" href="{{ submission_no_email_url }}">
+        <span>03</span>
+        <strong>{{ traffic_conversion_routes.routes.2.label }}</strong>
+        <small>{{ traffic_conversion_routes.routes.2.detail }}</small>
+      </a>
+    </div>
+  </section>
+
+  <section class="module x-admin-custom-page-section-card x-admin-traffic-terminal-zone">
+    <div class="x-admin-panel-header">
+      <div class="x-admin-panel-title-group">
+        <h2 class="x-admin-panel-title">{{ traffic_terminal_zone.title }}</h2>
+        <p class="x-admin-panel-copy">{{ traffic_terminal_zone.description }}</p>
+      </div>
+    </div>
+    <div class="x-admin-traffic-terminal-layout">
+      <div class="x-admin-traffic-terminal-actions">
+        {% for item in traffic_terminal_zone.action_cards %}
+        <a class="x-admin-traffic-terminal-card {{ item.variant }}" href="{{ item.url }}">
+          <span>{{ item.section_title }}</span>
+          <strong>{{ item.label }}</strong>
+          <small>{{ item.section_description }}</small>
+        </a>
+        {% endfor %}
+      </div>
+      <div class="x-admin-traffic-terminal-roadmap">
+        {% for item in traffic_terminal_zone.roadmap_cards %}
+        <article class="x-admin-traffic-terminal-card {{ item.variant }} is-roadmap">
+          <span>待接入</span>
+          <strong>{{ item.title }}</strong>
+          <small>{{ item.description }}</small>
+        </article>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+</div>
+{% endblock %}

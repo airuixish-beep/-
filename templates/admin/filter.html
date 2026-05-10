@@ -1,0 +1,13 @@
+{% load i18n %}
+<details data-filter-title="{{ title }}" open class="x-admin-native-filter-block">
+  <summary>
+    <span>{% blocktranslate with filter_title=title %} By {{ filter_title }} {% endblocktranslate %}</span>
+  </summary>
+  <ul class="x-admin-native-filter-list">
+  {% for choice in choices %}
+    <li{% if choice.selected %} class="selected"{% endif %}>
+      <a href="{{ choice.query_string|iriencode }}">{{ choice.display }}</a>
+    </li>
+  {% endfor %}
+  </ul>
+</details>

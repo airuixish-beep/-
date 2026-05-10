@@ -1,0 +1,56 @@
+<section class="module x-admin-copilot-panel">
+  <div class="x-admin-tactical-tag">AI Command Advisor</div>
+  <div class="x-admin-panel-header">
+    <div class="x-admin-panel-title-group">
+      <h2 class="x-admin-panel-title">AI参谋席</h2>
+      <p class="x-admin-panel-copy">以建议、指令和任务序列辅助运营判断。</p>
+    </div>
+  </div>
+  <article class="x-admin-copilot-hero">
+    <div class="x-admin-copilot-hero-copy">
+      <span>战略建议</span>
+      <h3>优先处置风险与支付链路</h3>
+      <p class="x-admin-panel-copy">先锁定高分风险交易，再校验支付成功率与退款波动。</p>
+    </div>
+    <div class="x-admin-copilot-avatar" aria-hidden="true"></div>
+  </article>
+  <div class="x-admin-metric-strip is-vertical">
+    <div class="x-admin-metric-cell">
+      <span>当前焦点</span>
+      <strong>交易波动</strong>
+    </div>
+    <div class="x-admin-metric-cell">
+      <span>优先动作</span>
+      <strong>先看风险单</strong>
+    </div>
+  </div>
+  <div class="x-admin-copilot-visual-grid" aria-hidden="true">
+    <div class="x-admin-copilot-radar-board">
+      <span class="x-admin-copilot-radar-ring is-outer"></span>
+      <span class="x-admin-copilot-radar-ring is-inner"></span>
+      <span class="x-admin-copilot-radar-dot"></span>
+    </div>
+    <div class="x-admin-copilot-pulse-board">
+      <span class="x-admin-copilot-pulse-line is-1"></span>
+      <span class="x-admin-copilot-pulse-line is-2"></span>
+      <span class="x-admin-copilot-pulse-line is-3"></span>
+    </div>
+  </div>
+  <div class="x-admin-copilot-command-grid">
+    <button type="button" class="x-admin-copilot-command">风险分析</button>
+    <button type="button" class="x-admin-copilot-command">订单预测</button>
+    <button type="button" class="x-admin-copilot-command">异常检测</button>
+    <button type="button" class="x-admin-copilot-command">策略编排</button>
+  </div>
+  <div class="x-admin-copilot-grid">
+    {% for suggestion in copilot_suggestions %}
+      <article class="summary-card x-admin-copilot-item">
+        <span class="x-admin-copilot-item-tag">AI</span>
+        <h3>{{ suggestion.title }}</h3>
+        <p class="x-admin-panel-copy">{{ suggestion.description }}</p>
+      </article>
+    {% empty %}
+      <div class="x-admin-empty">暂无建议。</div>
+    {% endfor %}
+  </div>
+</section>

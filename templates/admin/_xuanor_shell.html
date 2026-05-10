@@ -1,0 +1,14 @@
+{% extends "admin/base_site.html" %}
+
+{% block extrastyle %}
+{{ block.super }}
+{% block x_admin_extra_style %}{% endblock %}
+{% endblock %}
+
+{% block bodyclass %}{{ block.super }} dashboard x-admin-dashboard{% endblock %}
+
+{% block content %}
+<div class="x-admin-page-grid">
+  {% block x_admin_content %}{% endblock %}
+</div>
+{% endblock %}

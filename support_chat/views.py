@@ -1,13 +1,15 @@
 import json
 
 from django.conf import settings
-from django.contrib import admin
 from django.core.cache import cache
 from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404
 from django.template.response import TemplateResponse
+from django.urls import reverse
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_GET, require_POST
+
+from core.views import build_admin_shell_context
 
 from .models import ChatMessage, ChatOfflineMessage, ChatSession
 from .realtime import broadcast_session_closed
@@ -210,9 +212,21 @@ def operator_console_view(request):
         selected_session = get_object_or_404(ChatSession, pk=request.GET["session"])
     selected_session_messages = list(selected_session.messages.select_related("sender_user")) if selected_session else []
     context = {
-        **admin.site.each_context(request),
-        "title": "Support chat",
-        "subtitle": "Automatic translation for visitor conversations",
+        **build_admin_shell_context(
+            request,
+            title="Support Console",
+            subtitle="集中处理网站咨询、订单问题、离线留言与 OpenClaw 草稿协作。",
+            active_nav="support",
+            kicker="Customer Support Workspace",
+            breadcrumbs=[
+                {"label": "后台首页", "url": reverse("admin:index")},
+                {"label": "Support Console"},
+            ],
+            topbar_actions=[
+                {"label": "Customers", "url": reverse("backoffice_customers")},
+                {"label": "订单管理", "url": reverse("admin:orders_order_changelist"), "primary": True},
+            ],
+        ),
         "sessions": sessions,
         "selected_session": selected_session,
         "selected_session_messages": selected_session_messages,

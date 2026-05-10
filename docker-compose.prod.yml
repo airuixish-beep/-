@@ -8,7 +8,7 @@ services:
     container_name: xuanor_site_proxy
     depends_on:
       web:
-        condition: service_started
+        condition: service_healthy
 
 volumes:
   media_data:

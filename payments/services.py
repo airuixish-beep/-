@@ -3,6 +3,7 @@ from decimal import Decimal
 from django.conf import settings
 from django.urls import reverse
 
+from .gateway import PaymentGatewayRegistry
 from .models import Payment
 from .providers import PayPalService, StripeService
 from .providers.paypal import requests as paypal_requests
@@ -101,12 +102,8 @@ def _observe_provider_redirect(payment, redirect_url):
 
 
 def create_payment_redirect(payment, request):
-    if payment.provider == Payment.Provider.STRIPE:
-        redirect_url = StripeService.create_checkout_session(payment, request)
-        _observe_provider_redirect(payment, redirect_url)
-        return redirect_url
-    if payment.provider == Payment.Provider.PAYPAL:
-        redirect_url = PayPalService.create_order(payment, request)
-        _observe_provider_redirect(payment, redirect_url)
-        return redirect_url
-    raise PaymentGatewayError(f"不支持的支付方式：{payment.provider}")
+    gateway = PaymentGatewayRegistry.get(payment.provider)
+    result = gateway.create_payment(payment=payment, request=request)
+    redirect_url = result.get("approval_url") or payment.approval_url
+    _observe_provider_redirect(payment, redirect_url)
+    return redirect_url

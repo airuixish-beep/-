@@ -80,11 +80,11 @@ def create_manual_shipment(modeladmin, request, queryset):
 class OrderAdmin(admin.ModelAdmin):
     list_display = (
         "order_number",
-        "customer_name",
-        "customer_email",
+        "customer_summary",
         "status",
         "payment_status",
         "fulfillment_status",
+        "destination_summary",
         "latest_shipment_status",
         "refund_summary",
         "after_sales_count",
@@ -92,11 +92,15 @@ class OrderAdmin(admin.ModelAdmin):
         "currency",
         "created_at",
     )
-    list_filter = ("status", "payment_status", "fulfillment_status", "currency", "shipping_country", "created_at")
+    list_filter = ("status", "payment_status", "fulfillment_status", "currency", "shipping_country", "paid_at", "created_at")
     search_fields = ("order_number", "customer_name", "customer_email", "customer_phone")
     readonly_fields = (
         "order_number",
         "public_token",
+        "shipping_address",
+        "latest_shipment_status",
+        "refund_summary",
+        "after_sales_count",
         "subtotal_amount",
         "total_amount",
         "paid_at",
@@ -107,28 +111,120 @@ class OrderAdmin(admin.ModelAdmin):
     inlines = [OrderItemInline]
     actions = [mark_processing, create_easypost_shipment, create_manual_shipment, close_unpaid_orders]
     fieldsets = (
-        ("订单状态", {"fields": ("order_number", "public_token", "status", "payment_status", "fulfillment_status", "paid_at", "closed_at")}),
+        (
+            "指挥概览",
+            {
+                "fields": (
+                    "order_number",
+                    "public_token",
+                    "status",
+                    "payment_status",
+                    "fulfillment_status",
+                    "latest_shipment_status",
+                    "refund_summary",
+                    "after_sales_count",
+                )
+            },
+        ),
         ("客户信息", {"fields": ("customer_name", "customer_email", "customer_phone")}),
-        ("收货地址", {"fields": ("shipping_country", "shipping_state", "shipping_city", "shipping_postal_code", "shipping_address_line1", "shipping_address_line2")}),
+        (
+            "收货地址",
+            {
+                "fields": (
+                    "shipping_country",
+                    "shipping_state",
+                    "shipping_city",
+                    "shipping_postal_code",
+                    "shipping_address_line1",
+                    "shipping_address_line2",
+                    "shipping_address",
+                )
+            },
+        ),
         ("金额信息", {"fields": ("subtotal_amount", "shipping_amount", "total_amount", "currency")}),
-        ("其他", {"fields": ("notes", "internal_notes", "created_at", "updated_at")}),
+        ("运营备注", {"fields": ("notes", "internal_notes")}),
+        (
+            "时间与审计",
+            {
+                "classes": ("collapse",),
+                "fields": ("paid_at", "closed_at", "created_at", "updated_at"),
+            },
+        ),
     )
+    date_hierarchy = "created_at"
+    list_per_page = 25
+    save_on_top = True
+
+    def get_queryset(self, request):
+        queryset = super().get_queryset(request)
+        return queryset.prefetch_related("shipments", "after_sales_cases", "transactions__refunds")
+
+    def changelist_view(self, request, extra_context=None):
+        return super().changelist_view(
+            request,
+            extra_context={
+                **(extra_context or {}),
+                "title": "Orders",
+                "subtitle": "查看订单、支付状态、客户信息与履约进度。",
+            },
+        )
+
+    def add_view(self, request, form_url="", extra_context=None):
+        return super().add_view(
+            request,
+            form_url,
+            extra_context={
+                **(extra_context or {}),
+                "title": "新增订单",
+                "subtitle": "录入客户信息、收货地址和订单金额。",
+            },
+        )
+
+    def change_view(self, request, object_id, form_url="", extra_context=None):
+        return super().change_view(
+            request,
+            object_id,
+            form_url,
+            extra_context={
+                **(extra_context or {}),
+                "title": "编辑订单",
+                "subtitle": "维护订单状态、支付状态和履约相关字段。",
+            },
+        )
+
+    @admin.display(description="客户")
+    def customer_summary(self, obj):
+        return f"{obj.customer_name} / {obj.customer_email}"
+
+    @admin.display(description="目的地")
+    def destination_summary(self, obj):
+        return f"{obj.shipping_city}, {obj.shipping_country}"
 
     @admin.display(description="最新发货状态")
     def latest_shipment_status(self, obj):
-        shipment = obj.shipments.order_by("-created_at").first()
+        if not obj or not getattr(obj, "pk", None):
+            return "-"
+        shipments = list(obj.shipments.all())
+        shipment = shipments[0] if shipments else None
         return shipment.get_status_display() if shipment else "-"
 
     @admin.display(description="退款摘要")
     def refund_summary(self, obj):
-        refunds = Refund.objects.filter(transaction__order=obj)
-        if not refunds.exists():
+        if not obj or not getattr(obj, "pk", None):
             return "无"
-        succeeded = refunds.filter(status=Refund.Status.SUCCEEDED).count()
-        processing = refunds.filter(status=Refund.Status.PROCESSING).count()
-        requested = refunds.filter(status=Refund.Status.REQUESTED).count()
+        refunds = [refund for transaction in obj.transactions.all() for refund in transaction.refunds.all()]
+        if not refunds:
+            return "无"
+        succeeded = sum(1 for refund in refunds if refund.status == Refund.Status.SUCCEEDED)
+        processing = sum(1 for refund in refunds if refund.status == Refund.Status.PROCESSING)
+        requested = sum(1 for refund in refunds if refund.status == Refund.Status.REQUESTED)
         return f"成功{succeeded}/处理中{processing}/申请{requested}"
 
     @admin.display(description="售后单数")
     def after_sales_count(self, obj):
-        return AfterSalesCase.objects.filter(order=obj).count()
+        if not obj or not getattr(obj, "pk", None):
+            return 0
+        related = getattr(obj, "after_sales_cases", None)
+        if related is None:
+            return 0
+        return len(related.all())

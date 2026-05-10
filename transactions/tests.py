@@ -10,7 +10,7 @@ from payments.models import Payment
 from products.models import Product
 
 from .engine import TransactionEngine
-from .models import LedgerEntry, ReconciliationItem, ReconciliationRun, Refund, RiskAssessment, Transaction, TransactionEvent
+from .models import LedgerEntry, LedgerTransaction, ReconciliationItem, ReconciliationRun, Refund, RiskAssessment, Transaction, TransactionEvent
 from .reconciliation import ReconciliationService
 from .refunds import RefundCenter
 from .risk import RiskService
@@ -216,6 +216,7 @@ class TransactionIntegrationTests(TestCase):
         self.assertEqual(transaction_obj.risk_status, Transaction.RiskStatus.ALLOW)
         self.assertEqual(self.product.stock_quantity, 4)
         self.assertEqual(LedgerEntry.objects.filter(transaction=transaction_obj, entry_type="payment_capture").count(), 2)
+        self.assertEqual(LedgerTransaction.objects.filter(order=self.order, payment=self.payment, kind=LedgerTransaction.Kind.PAYMENT_CAPTURE).count(), 1)
         self.assertEqual(RiskAssessment.objects.filter(transaction=transaction_obj).count(), 1)
         self.assertEqual(RiskAssessment.objects.get(transaction=transaction_obj).payload["phase"], "post_payment_success")
 
@@ -266,6 +267,7 @@ class TransactionIntegrationTests(TestCase):
         self.assertEqual(refund.status, Refund.Status.SUCCEEDED)
         self.assertEqual(transaction_obj.status, Transaction.Status.PARTIALLY_REFUNDED)
         self.assertEqual(LedgerEntry.objects.filter(refund=refund, entry_type="refund").count(), 2)
+        self.assertEqual(LedgerTransaction.objects.filter(refund=refund, kind=LedgerTransaction.Kind.REFUND).count(), 1)
 
     def test_manual_refund_status_helpers_update_refund_and_transaction(self):
         transaction_obj = get_or_create_purchase_transaction(self.order, self.payment)
@@ -296,6 +298,55 @@ class TransactionIntegrationTests(TestCase):
         self.assertEqual(refund.provider_refund_id, "manual-123")
         self.assertIsNotNone(refund.completed_at)
         self.assertEqual(transaction_obj.status, Transaction.Status.PARTIALLY_REFUNDED)
+
+    def test_full_refund_closes_unshipped_order(self):
+        transaction_obj = get_or_create_purchase_transaction(self.order, self.payment)
+        TransactionEngine.confirm_payment_succeeded(
+            self.payment,
+            source="test",
+            idempotency_key="evt:paid:full-refund-order-close",
+            external_payment_id="pi_full_refund_close",
+            payload={"ok": True},
+        )
+        refund = RefundCenter.create_request(
+            transaction_obj,
+            amount=transaction_obj.amount,
+            currency="USD",
+            reason="cancel order",
+        )
+
+        RefundCenter.mark_succeeded(refund, payload={"manual": True}, provider_refund_id="manual-full-close")
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.status, Order.Status.CANCELLED)
+        self.assertEqual(self.order.fulfillment_status, Order.FulfillmentStatus.CANCELLED)
+        self.assertEqual(self.order.payment_status, Order.PaymentStatus.CANCELLED)
+        self.assertIsNotNone(self.order.closed_at)
+
+    def test_full_refund_closes_shipped_order(self):
+        transaction_obj = get_or_create_purchase_transaction(self.order, self.payment)
+        TransactionEngine.confirm_payment_succeeded(
+            self.payment,
+            source="test",
+            idempotency_key="evt:paid:full-refund-shipped-close",
+            external_payment_id="pi_full_refund_shipped",
+            payload={"ok": True},
+        )
+        self.order.fulfillment_status = Order.FulfillmentStatus.SHIPPED
+        self.order.status = Order.Status.SHIPPED
+        self.order.save(update_fields=["fulfillment_status", "status", "updated_at"])
+        refund = RefundCenter.create_request(
+            transaction_obj,
+            amount=transaction_obj.amount,
+            currency="USD",
+            reason="refund shipped order",
+        )
+
+        RefundCenter.mark_succeeded(refund, payload={"manual": True}, provider_refund_id="manual-full-shipped")
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.status, Order.Status.CANCELLED)
+        self.assertEqual(self.order.payment_status, Order.PaymentStatus.CANCELLED)
+        self.assertEqual(self.order.fulfillment_status, Order.FulfillmentStatus.SHIPPED)
+        self.assertIsNotNone(self.order.closed_at)
 
     def test_refund_center_rejects_over_refund(self):
         transaction_obj = get_or_create_purchase_transaction(self.order, self.payment)

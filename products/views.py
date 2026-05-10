@@ -26,6 +26,12 @@ def product_list(request):
     recommended_products = [] if has_filters else get_recommended_products(limit=3)
     selected_category = next((category for category in categories if category.slug == selected_category_slug), None)
 
+    active_filter_labels = [selected_category.name if selected_category else "全部商品"]
+    if selected_featured:
+        active_filter_labels.append("精选")
+    if selected_available:
+        active_filter_labels.append("可购买")
+
     return render(
         request,
         "products/product_list.html",
@@ -38,6 +44,7 @@ def product_list(request):
             "selected_featured": selected_featured,
             "selected_available": selected_available,
             "has_filters": has_filters,
+            "mobile_filter_summary": " · ".join(active_filter_labels),
         },
     )
 

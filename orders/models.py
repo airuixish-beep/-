@@ -194,6 +194,24 @@ class Order(models.Model):
         if update_fields:
             self.save(update_fields=[*dict.fromkeys(update_fields), "updated_at"])
 
+    def sync_from_transaction_status(self, transaction_status):
+        from transactions.models import Transaction
+
+        if transaction_status == Transaction.Status.REFUNDED:
+            self.payment_status = self.PaymentStatus.CANCELLED
+            if self.fulfillment_status in {self.FulfillmentStatus.UNFULFILLED, self.FulfillmentStatus.PROCESSING}:
+                self.status = self.Status.CANCELLED
+                self.fulfillment_status = self.FulfillmentStatus.CANCELLED
+                self.closed_at = timezone.now()
+                self.save(update_fields=["payment_status", "status", "fulfillment_status", "closed_at", "updated_at"])
+                return
+            self.status = self.Status.CANCELLED
+            self.closed_at = timezone.now()
+            self.save(update_fields=["payment_status", "status", "closed_at", "updated_at"])
+        elif transaction_status == Transaction.Status.PARTIALLY_REFUNDED:
+            self.payment_status = self.PaymentStatus.PAID
+            self.save(update_fields=["payment_status", "updated_at"])
+
 
 class OrderItem(models.Model):
     order = models.ForeignKey(Order, verbose_name="所属订单", on_delete=models.CASCADE, related_name="items")

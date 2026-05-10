@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     "orders",
     "payments",
     "transactions",
+    "trade_cockpit",
     "shipping",
     "support_chat",
     "after_sales",

@@ -9,3 +9,7 @@ img {
 [x-cloak] {
   display: none !important;
 }
+
+body.drawer-open {
+  overflow: hidden;
+}

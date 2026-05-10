@@ -1,0 +1,210 @@
+<section class="module x-admin-radar-panel">
+  <div class="x-admin-radar-headline">
+    <span>Radar Core</span>
+    <span>Live Scan</span>
+    <span>{{ trade_radar.order_count }} Orders</span>
+    <span>{{ trade_radar.paid_order_count }} Paid</span>
+  </div>
+  <div class="x-admin-panel-header">
+    <div class="x-admin-panel-title-group">
+      <h2 class="x-admin-panel-title">交易雷达</h2>
+      <p class="x-admin-panel-copy">以全球战术画布聚合订单、支付、风控与资金链路的实时态势。</p>
+    </div>
+  </div>
+  <div class="x-admin-metric-strip">
+    <div class="x-admin-metric-cell"><span>GMV</span><strong>{{ trade_radar.gmv }}</strong></div>
+    <div class="x-admin-metric-cell"><span>支付成功率</span><strong>{{ trade_radar.paid_rate }}%</strong></div>
+    <div class="x-admin-metric-cell"><span>退款额</span><strong>{{ trade_radar.refund_total }}</strong></div>
+    <div class="x-admin-metric-cell"><span>净额</span><strong>{{ trade_radar.net_amount }}</strong></div>
+  </div>
+  <div class="x-admin-radar-theater is-worldstage">
+    <aside class="x-admin-radar-scope-card">
+      <div class="x-admin-radar-scope-visual">
+        <span class="x-admin-radar-scope-ring is-outer"></span>
+        <span class="x-admin-radar-scope-ring is-middle"></span>
+        <span class="x-admin-radar-scope-ring is-inner"></span>
+        <span class="x-admin-radar-scope-dot"></span>
+      </div>
+      <div class="x-admin-radar-scope-copy">
+        <h3>全球交易雷达</h3>
+        <p>当前窗口：{{ filters.label }}</p>
+      </div>
+      <div class="x-admin-radar-scope-list">
+        {% for row in trade_radar.payment_totals %}
+          <div class="x-admin-radar-scope-item">
+            <strong>{{ row.provider }}</strong>
+            <span>{{ row.paid_count }}/{{ row.total_count }}</span>
+          </div>
+        {% empty %}
+          <div class="x-admin-empty">暂无支付记录。</div>
+        {% endfor %}
+      </div>
+    </aside>
+    <div class="x-admin-radar-worldstage">
+      <div class="x-admin-radar-world-metrics">
+        <article><strong>{{ trade_radar.order_count }}</strong><span>监测订单总数</span></article>
+        <article><strong>{{ trade_radar.gmv }}</strong><span>当前交易总额</span></article>
+        <article><strong>{{ trade_radar.paid_order_count }}</strong><span>活跃支付链路</span></article>
+        <article><strong>{{ alerts|length }}</strong><span>异常交易信号</span></article>
+      </div>
+      <div class="x-admin-radar-world-grid">
+        <div class="x-admin-radar-stage x-admin-radar-map-canvas">
+          <svg class="x-admin-radar-world-svg" viewBox="0 0 960 560" aria-label="全球交易战术画布" role="img">
+            <defs>
+              <linearGradient id="world-route-cyan" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stop-color="#49f2ff" stop-opacity="0.1" />
+                <stop offset="50%" stop-color="#49f2ff" stop-opacity="0.95" />
+                <stop offset="100%" stop-color="#49f2ff" stop-opacity="0.1" />
+              </linearGradient>
+              <linearGradient id="world-route-red" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stop-color="#ff6b87" stop-opacity="0.08" />
+                <stop offset="50%" stop-color="#ff6b87" stop-opacity="0.92" />
+                <stop offset="100%" stop-color="#ff6b87" stop-opacity="0.08" />
+              </linearGradient>
+            </defs>
+            <g class="x-admin-world-gridlines">
+              <path d="M40 110 H920" />
+              <path d="M40 210 H920" />
+              <path d="M40 310 H920" />
+              <path d="M40 410 H920" />
+              <path d="M160 60 V500" />
+              <path d="M320 60 V500" />
+              <path d="M480 60 V500" />
+              <path d="M640 60 V500" />
+              <path d="M800 60 V500" />
+            </g>
+            <g class="x-admin-world-landmasses">
+              <path d="M126 160c32-30 68-44 98-42 18 0 40 10 40 32 0 20-14 40-20 59-6 18-2 28 4 44 6 17-6 34-22 38-30 8-56-6-78-26-24-22-36-50-44-83-8-34 2-55 22-70z" />
+              <path d="M258 306c20 4 40 20 50 46 12 32 10 67-8 95-14 22-40 32-58 18-16-12-18-38-12-64 6-28 10-54 28-95z" />
+              <path d="M414 150c40-30 86-41 120-28 28 10 44 28 60 50 20 30 26 62 24 98-2 34-12 66-34 88-20 20-48 34-88 26-38-6-74-28-98-52-26-28-34-62-26-102 8-38 14-54 42-80z" />
+              <path d="M590 176c24-12 58-16 88-8 28 8 48 24 62 44 22 28 42 46 78 58 22 8 30 22 26 42-4 18-22 34-44 38-26 6-46-2-70-18-22-14-36-24-58-18-30 8-46 36-66 52-18 14-44 18-58 0-14-20-6-44 6-68 12-22 26-42 22-66-4-20-10-36 14-56z" />
+              <path d="M760 352c18-10 40-12 58-2 20 12 26 32 24 52-2 16-16 26-32 28-22 2-44-6-60-20-16-14-12-48 10-58z" />
+            </g>
+            <g class="x-admin-world-routes">
+              <path class="is-cyan" d="M162 260 C 270 170 404 162 544 246" />
+              <path class="is-cyan" d="M212 340 C 340 238 540 218 724 300" />
+              <path class="is-cyan" d="M468 252 C 532 224 618 232 702 278" />
+              <path class="is-cyan is-ghost" d="M184 292 C 312 206 486 188 620 242" />
+              <path class="is-cyan is-ghost" d="M284 356 C 430 280 618 278 786 332" />
+              <path class="is-red" d="M520 268 C 650 186 760 178 850 222" />
+              <path class="is-red" d="M490 298 C 598 336 716 378 840 438" />
+              <path class="is-red" d="M250 360 C 420 246 640 186 770 156" />
+              <path class="is-red is-ghost" d="M602 262 C 696 306 792 352 868 406" />
+            </g>
+            <g class="x-admin-world-rings">
+              <circle cx="576" cy="260" r="28" />
+              <circle cx="576" cy="260" r="56" />
+              <circle cx="576" cy="260" r="88" />
+              <circle cx="576" cy="260" r="124" />
+            </g>
+            <g class="x-admin-world-hotspots">
+              <circle class="is-primary" cx="576" cy="260" r="22" />
+              <circle class="is-secondary" cx="454" cy="248" r="14" />
+              <circle class="is-secondary" cx="190" cy="274" r="12" />
+              <circle class="is-danger" cx="840" cy="438" r="14" />
+              <circle class="is-danger" cx="848" cy="220" r="12" />
+            </g>
+            <g class="x-admin-world-nodes">
+              <circle class="is-cyan" cx="190" cy="274" r="6" />
+              <circle class="is-cyan" cx="310" cy="354" r="5" />
+              <circle class="is-cyan" cx="454" cy="248" r="5" />
+              <circle class="is-cyan" cx="640" cy="270" r="5" />
+              <circle class="is-red" cx="576" cy="260" r="7" />
+              <circle class="is-red" cx="840" cy="438" r="6" />
+              <circle class="is-red" cx="848" cy="220" r="5" />
+            </g>
+          </svg>
+          <div class="x-admin-radar-map-overlay x-admin-radar-map-overlay-top">
+            <span>作战雷达主屏</span>
+            <strong>{{ filters.currency_label }}</strong>
+          </div>
+          <div class="x-admin-radar-map-overlay x-admin-radar-map-overlay-bottom">
+            <span>峰值 GMV</span>
+            <strong>{{ trade_radar.trend_peak_gmv }}</strong>
+          </div>
+        </div>
+        <aside class="x-admin-radar-threat-card">
+          <div class="x-admin-radar-threat-visual">
+            <span class="x-admin-threat-node is-critical"></span>
+            <span class="x-admin-threat-node is-review"></span>
+            <span class="x-admin-threat-node is-safe"></span>
+            <span class="x-admin-threat-shield"></span>
+          </div>
+          <div class="x-admin-radar-threat-summary">
+            <div><span>高危</span><strong>{{ risk_summary.block_count }}</strong></div>
+            <div><span>中危</span><strong>{{ risk_summary.review_count }}</strong></div>
+            <div><span>低危</span><strong>{{ alerts|length|add:'-1' }}</strong></div>
+          </div>
+          <div class="x-admin-radar-threat-distribution" aria-hidden="true">
+            <span class="x-admin-radar-threat-arc is-critical"></span>
+            <span class="x-admin-radar-threat-arc is-review"></span>
+            <span class="x-admin-radar-threat-arc is-safe"></span>
+            <span class="x-admin-radar-threat-core"></span>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </div>
+  <div class="x-admin-radar-alertbar">
+    <div class="x-admin-radar-alertbar-title">实时告警</div>
+    <div class="x-admin-radar-alertbar-list">
+      {% for alert in alerts|slice:":3" %}
+        <div class="x-admin-radar-alertbar-item{% if alert.decision == 'block' %} is-critical{% elif alert.decision == 'review' %} is-review{% endif %}">
+          <span>{{ alert.transaction.order.order_number }}</span>
+          <strong>{{ alert.payload.phase|default:'risk' }}</strong>
+          <small>分值 {{ alert.score }}</small>
+        </div>
+      {% empty %}
+        <div class="x-admin-radar-alertbar-item is-safe">
+          <span>System</span>
+          <strong>暂无高优先预警</strong>
+          <small>交易态势稳定</small>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% if trade_radar.chart.points %}
+    <div class="x-admin-radar-telemetry-card">
+      <div class="x-admin-panel-header">
+        <div class="x-admin-panel-title-group">
+          <h3>趋势遥测</h3>
+          <p class="x-admin-panel-copy">压缩为遥测带，保留交易、退款与成功率变化。</p>
+        </div>
+      </div>
+      <div class="x-admin-chart-legend">
+        <span><i class="is-gmv"></i>GMV 折线</span>
+        <span><i class="is-refund"></i>退款柱</span>
+        <span><i class="is-rate"></i>成功率折线</span>
+      </div>
+      <div class="x-admin-trend-chart-card x-admin-radar-telemetry-stage">
+        <svg class="x-admin-trend-svg" viewBox="0 0 {{ trade_radar.chart.width }} {{ trade_radar.chart.height }}" aria-label="每日趋势图表" role="img">
+          <line x1="44" y1="{{ trade_radar.chart.plot_bottom }}" x2="676" y2="{{ trade_radar.chart.plot_bottom }}" class="x-admin-trend-axis" />
+          <path d="{{ trade_radar.chart.gmv_path }}" class="x-admin-trend-line is-gmv" />
+          <path d="{{ trade_radar.chart.rate_path }}" class="x-admin-trend-line is-rate" />
+          {% for row in trade_radar.chart.points %}
+            <rect x="{{ row.x|add:'-10' }}" y="{{ row.refund_y }}" width="20" height="{{ row.refund_height }}" rx="8" class="x-admin-trend-rect is-refund">
+              <title>{{ row.label }} 退款 {{ row.refund_total }}</title>
+            </rect>
+            <circle cx="{{ row.x }}" cy="{{ row.gmv_y }}" r="4" class="x-admin-trend-dot is-gmv">
+              <title>{{ row.label }} GMV {{ row.gmv }}</title>
+            </circle>
+            <circle cx="{{ row.x }}" cy="{{ row.rate_y }}" r="3.5" class="x-admin-trend-dot is-rate">
+              <title>{{ row.label }} 成功率 {{ row.paid_rate }}%</title>
+            </circle>
+            <text x="{{ row.x }}" y="{{ trade_radar.chart.plot_bottom|add:'20' }}" text-anchor="middle" class="x-admin-trend-label">{{ row.label }}</text>
+          {% endfor %}
+        </svg>
+      </div>
+      <div class="x-admin-trend-grid">
+        {% for row in trade_radar.chart.points %}
+          <article class="x-admin-trend-grid-item">
+            <strong>{{ row.label }}</strong>
+            <span>GMV {{ row.gmv }}</span>
+            <span>退款 {{ row.refund_total }}</span>
+            <span>{{ row.orders }} 单 · 成功率 {{ row.paid_rate }}%</span>
+          </article>
+        {% endfor %}
+      </div>
+    </div>
+  {% endif %}
+</section>

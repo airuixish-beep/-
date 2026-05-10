@@ -1,14 +1,15 @@
 from django.contrib import admin
-from django.db.models import Min, Sum
+from django.db.models import Count
 
 from .models import Category, InventoryRecord, Product, ProductFeature, ProductImage, ProductVariant
 
 
 class ProductFeatureInline(admin.TabularInline):
     model = ProductFeature
-    extra = 1
+    extra = 0
     fields = ("title", "description", "sort_order")
     ordering = ("sort_order", "id")
+    classes = ("collapse",)
 
 
 class ProductImageInline(admin.TabularInline):
@@ -17,6 +18,7 @@ class ProductImageInline(admin.TabularInline):
     fields = ("image", "image_type", "alt_text", "sort_order")
     ordering = ("sort_order", "id")
     show_change_link = True
+    classes = ("collapse",)
 
 
 class ProductVariantInline(admin.TabularInline):
@@ -57,6 +59,7 @@ class ProductAdmin(admin.ModelAdmin):
         "display_sku",
         "category",
         "display_price_summary",
+        "variant_count",
         "stock_quantity",
         "stock_status",
         "is_active",
@@ -65,44 +68,39 @@ class ProductAdmin(admin.ModelAdmin):
         "sort_order",
         "updated_at",
     )
-    list_filter = ("is_active", "is_purchasable", "is_featured", "currency", "category")
+    list_filter = ("category", "currency", "is_active", "is_purchasable", "is_featured", "updated_at")
     list_editable = ("is_active", "is_purchasable", "is_featured", "sort_order")
     prepopulated_fields = {"slug": ("name",)}
     search_fields = ("name", "sku", "subtitle", "short_description", "slug", "variants__sku")
+    readonly_fields = ("display_sku", "display_price_summary", "stock_status", "created_at", "updated_at")
+    autocomplete_fields = ("category",)
     inlines = [ProductFeatureInline, ProductImageInline, ProductVariantInline]
     actions = ["mark_as_published", "mark_as_unpublished", "mark_as_purchasable", "mark_as_not_purchasable"]
     fieldsets = (
         (
-            "基础信息",
+            "商品识别",
             {
                 "fields": (
                     "name",
                     "slug",
                     "sku",
+                    "display_sku",
                     "category",
                     "subtitle",
                     "short_description",
                 )
             },
         ),
+        ("内容与展示", {"fields": ("description", "specification", "usage_notes", "hero_image")}),
         (
-            "展示内容",
+            "销售指挥",
             {
                 "fields": (
-                    "description",
-                    "specification",
-                    "usage_notes",
-                    "hero_image",
-                )
-            },
-        ),
-        (
-            "销售设置",
-            {
-                "fields": (
+                    "display_price_summary",
                     "price",
                     "currency",
                     "stock_quantity",
+                    "stock_status",
                     "is_purchasable",
                     "is_active",
                     "is_featured",
@@ -112,14 +110,59 @@ class ProductAdmin(admin.ModelAdmin):
         ),
         ("SEO", {"classes": ("collapse",), "fields": ("seo_title", "seo_description")}),
         ("物流尺寸", {"classes": ("collapse",), "fields": ("weight", "length", "width", "height")}),
+        ("时间与审计", {"classes": ("collapse",), "fields": ("created_at", "updated_at")}),
     )
+    list_select_related = ("category",)
+    date_hierarchy = "updated_at"
+    save_on_top = True
+
+    def get_queryset(self, request):
+        queryset = super().get_queryset(request)
+        return queryset.annotate(variant_total=Count("variants", distinct=True))
+
+    def changelist_view(self, request, extra_context=None):
+        return super().changelist_view(
+            request,
+            extra_context={
+                **(extra_context or {}),
+                "title": "Products",
+                "subtitle": "维护商品资料、上下架状态、库存与商品结构。",
+            },
+        )
+
+    def add_view(self, request, form_url="", extra_context=None):
+        return super().add_view(
+            request,
+            form_url,
+            extra_context={
+                **(extra_context or {}),
+                "title": "新增商品",
+                "subtitle": "创建商品主档、价格、库存与展示信息。",
+            },
+        )
+
+    def change_view(self, request, object_id, form_url="", extra_context=None):
+        return super().change_view(
+            request,
+            object_id,
+            form_url,
+            extra_context={
+                **(extra_context or {}),
+                "title": "编辑商品",
+                "subtitle": "维护商品详情、价格、库存、图片和变体信息。",
+            },
+        )
 
     @admin.display(description="商品编码")
     def display_sku(self, obj):
+        if not obj or not getattr(obj, "pk", None):
+            return "-"
         return obj.display_sku or "-"
 
     @admin.display(description="售价")
     def display_price_summary(self, obj):
+        if not obj:
+            return "-"
         min_price, max_price = obj.price_range
         if min_price is None:
             return "-"
@@ -129,7 +172,13 @@ class ProductAdmin(admin.ModelAdmin):
 
     @admin.display(description="库存状态")
     def stock_status(self, obj):
+        if not obj:
+            return "-"
         return obj.stock_status_label
+
+    @admin.display(description="SKU 数")
+    def variant_count(self, obj):
+        return getattr(obj, "variant_total", 0)
 
     @admin.action(description="批量上架")
     def mark_as_published(self, request, queryset):

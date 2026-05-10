@@ -1,76 +1,252 @@
-{% extends "admin/base_site.html" %}
-{% load i18n static log %}
+{% extends "admin/_xuanor_shell.html" %}
 
-{% block extrastyle %}
-{{ block.super }}
-<link rel="stylesheet" href="{% static 'admin/css/dashboard.css' %}">
-<style>
-  .dashboard-entry {
-    margin-bottom: 20px;
-  }
-  .dashboard-entry .button {
-    margin-top: 10px;
-  }
-  .dashboard-entry p {
-    margin-bottom: 0;
-    color: #666;
-  }
-</style>
-{% endblock %}
+{% block x_admin_content %}
+<div class="x-admin-home-grid">
+  <div class="x-admin-home-theater">
+    <section class="module x-admin-home-primary">
+      <div class="x-admin-panel-header">
+        <div class="x-admin-panel-title-group">
+          <h2 class="x-admin-panel-title">首页主屏</h2>
+          <p class="x-admin-panel-copy">把首页中段切成主副屏：左侧负责当前主战场，右侧负责高频分流入口。</p>
+        </div>
+      </div>
+      <div class="x-admin-home-battle-layout">
+        <section class="x-admin-home-battle-main">
+          <div class="x-admin-home-entry-spotlight">
+            <div class="x-admin-home-entry-spotlight-copy">
+              <span class="x-admin-home-entry-tag">Primary Theater</span>
+              <h3>先看战情驾驶舱，再向下分流到分析、客服与线索。</h3>
+              <p class="x-admin-panel-copy">把交易态势作为总控首页的第一观察面，首页负责调度，驾驶舱负责深入，原生 Admin 负责落地执行。</p>
+            </div>
+            <div class="x-admin-home-entry-spotlight-actions">
+              <a class="x-admin-button is-primary" href="{% url 'trade_cockpit_dashboard' %}">打开驾驶舱</a>
+              <a class="x-admin-button" href="/admin/orders/order/">订单列表</a>
+              <a class="x-admin-button" href="/admin/transactions/refund/">退款列表</a>
+            </div>
+          </div>
+          <div class="x-admin-home-entry-grid">
+            <article class="x-admin-home-entry-card is-cockpit">
+              <span class="x-admin-home-entry-tag">Core</span>
+              <h3>战情驾驶舱</h3>
+              <p class="x-admin-panel-copy">查看实时订单流、支付链路、风控预警、资金监控与 AI 建议。</p>
+              <div class="x-admin-filter-actions">
+                <a class="x-admin-button is-primary" href="{% url 'trade_cockpit_dashboard' %}">进入驾驶舱</a>
+              </div>
+            </article>
+            <article class="x-admin-home-entry-card is-analytics">
+              <span class="x-admin-home-entry-tag">Intel</span>
+              <h3>经营分析</h3>
+              <p class="x-admin-panel-copy">综合观察订单、支付、发货、商品和地区分布的经营态势。</p>
+              <div class="x-admin-filter-actions">
+                <a class="x-admin-button is-primary" href="{% url 'analytics_dashboard:index' %}">进入分析</a>
+              </div>
+            </article>
+            <article class="x-admin-home-entry-card is-support">
+              <span class="x-admin-home-entry-tag">Ops</span>
+              <h3>客服控制台</h3>
+              <p class="x-admin-panel-copy">集中处理访客会话、留言、售后问题与订单咨询。</p>
+              <div class="x-admin-filter-actions">
+                <a class="x-admin-button is-primary" href="{% url 'support_chat_console' %}">进入客服台</a>
+              </div>
+            </article>
+            <article class="x-admin-home-entry-card is-quiz">
+              <span class="x-admin-home-entry-tag">Leads</span>
+              <h3>五行测试</h3>
+              <p class="x-admin-panel-copy">查看测试提交、结果分布、留资率与最近线索记录。</p>
+              <div class="x-admin-filter-actions">
+                <a class="x-admin-button is-primary" href="{% url 'analytics_dashboard:quiz' %}">进入五行测试统计</a>
+              </div>
+            </article>
+          </div>
+        </section>
+        <aside class="x-admin-home-battle-side">
+          <div class="x-admin-home-side-module">
+            <div class="x-admin-panel-title-group">
+              <span class="x-admin-home-entry-tag">Quick Dispatch</span>
+              <h3>高频执行跳板</h3>
+              <p class="x-admin-panel-copy">把今天最容易打开的执行面板压到右手侧，不需要先经过系统模块区。</p>
+            </div>
+            <div class="x-admin-home-side-links">
+              <a class="x-admin-home-side-link" href="/admin/orders/order/">
+                <span class="x-admin-home-entry-tag">Orders</span>
+                <h3>订单列表</h3>
+                <small>查看支付与履约推进</small>
+              </a>
+              <a class="x-admin-home-side-link" href="/admin/shipping/shipment/">
+                <span class="x-admin-home-entry-tag">Shipping</span>
+                <h3>发货列表</h3>
+                <small>处理在途与异常件</small>
+              </a>
+              <a class="x-admin-home-side-link" href="/admin/after_sales/aftersalescase/">
+                <span class="x-admin-home-entry-tag">After Sales</span>
+                <h3>售后列表</h3>
+                <small>跟进补发与售后协同</small>
+              </a>
+              <a class="x-admin-home-side-link" href="/admin/transactions/refund/">
+                <span class="x-admin-home-entry-tag">Refunds</span>
+                <h3>退款列表</h3>
+                <small>处理退款提交与结果</small>
+              </a>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </section>
 
-{% block coltype %}colMS{% endblock %}
-{% block bodyclass %}{{ block.super }} dashboard{% endblock %}
-{% block nav-breadcrumbs %}{% endblock %}
-{% block nav-sidebar %}{% endblock %}
+  </div>
 
-{% block content %}
-<div id="content-main">
-  <div class="module dashboard-entry">
-    <h2>经营分析</h2>
-    <p>查看订单、支付、发货、商品和地区分布的综合经营数据。</p>
-    <p><a class="button default" href="{% url 'analytics_dashboard:index' %}">进入数据看板</a></p>
+  <div class="trade-cockpit-command-metrics x-admin-home-kpi-grid">
+    {% for metric in command_metrics %}
+      <a class="trade-cockpit-command-cell {{ metric.variant }}" href="{{ metric.url }}">
+        <span>{{ metric.label }}</span>
+        <strong>{{ metric.value }}</strong>
+        <small>{{ metric.detail }}</small>
+      </a>
+    {% endfor %}
   </div>
-  <div class="module dashboard-entry">
-    <h2>在线客服</h2>
-    <p>进入统一客服控制台，集中处理访客会话、订单咨询、售后问题和离线留言。</p>
-    <p><a class="button default" href="/admin/support_chat/chatsession/">进入在线客服控制台</a></p>
-  </div>
-  <div class="module dashboard-entry">
-    <h2>五行测试统计</h2>
-    <p>查看五行测试提交量、结果分布、留资率与最近提交记录。</p>
-    <p><a class="button default" href="{% url 'analytics_dashboard:quiz' %}">进入五行测试统计</a></p>
-  </div>
-  {% include "admin/app_list.html" with app_list=app_list show_changelinks=True %}
-</div>
-{% endblock %}
 
-{% block sidebar %}
-<div id="content-related">
-  <div class="module" id="recent-actions-module">
-    <h2>{% translate 'Recent actions' %}</h2>
-    <h3>{% translate 'My actions' %}</h3>
-    {% get_admin_log 10 as admin_log for_user user %}
-    {% if not admin_log %}
-    <p>{% translate 'None available' %}</p>
-    {% else %}
-    <ul class="actionlist">
-      {% for entry in admin_log %}
-      <li class="{% if entry.is_addition %}addlink{% endif %}{% if entry.is_change %}changelink{% endif %}{% if entry.is_deletion %}deletelink{% endif %}">
-        {% if entry.is_deletion or not entry.get_admin_url %}
-          {{ entry.object_repr }}
-        {% else %}
-          <a href="{{ entry.get_admin_url }}">{{ entry.object_repr }}</a>
-        {% endif %}
-        <br>
-        {% if entry.content_type %}
-        <span class="mini quiet">{% filter capfirst %}{{ entry.content_type.name }}{% endfilter %}</span>
-        {% else %}
-        <span class="mini quiet">{% translate 'Unknown content' %}</span>
-        {% endif %}
-      </li>
-      {% endfor %}
-    </ul>
-    {% endif %}
+  <div class="x-admin-home-lower-grid">
+    <section class="module x-admin-home-product-module">
+      <div class="x-admin-panel-header">
+        <div class="x-admin-panel-title-group">
+          <h2 class="x-admin-panel-title">商品管理模块</h2>
+          <p class="x-admin-panel-copy">把商品主档、SKU、类目与库存流水集中为独立入口，便于商品运营直接调度。</p>
+        </div>
+        <div class="x-admin-filter-actions">
+          <a class="x-admin-button is-primary" href="{% url 'admin:products_category_add' %}">新增商品类目</a>
+          <a class="x-admin-button is-primary" href="{% url 'admin:products_product_add' %}">新增商品</a>
+        </div>
+      </div>
+      <div class="x-admin-home-route-grid">
+        <a class="x-admin-home-route-card" href="{% url 'admin:products_product_changelist' %}">
+          <span>01</span>
+          <strong>商品管理</strong>
+          <small>维护商品资料、上下架状态与售卖信息</small>
+        </a>
+        <a class="x-admin-home-route-card" href="{% url 'admin:products_productvariant_changelist' %}">
+          <span>02</span>
+          <strong>商品 SKU</strong>
+          <small>查看变体价格、库存与安全库存阈值</small>
+        </a>
+        <a class="x-admin-home-route-card" href="{% url 'admin:products_category_changelist' %}">
+          <span>03</span>
+          <strong>商品类目</strong>
+          <small>维护类目结构、排序与启用状态</small>
+        </a>
+        <a class="x-admin-home-route-card" href="{% url 'admin:products_inventoryrecord_changelist' %}">
+          <span>04</span>
+          <strong>库存流水</strong>
+          <small>追踪库存增减、变更原因与前后数量</small>
+        </a>
+      </div>
+    </section>
+
+    <section class="module x-admin-home-fulfillment-module">
+      <div class="x-admin-panel-header">
+        <div class="x-admin-panel-title-group">
+          <h2 class="x-admin-panel-title">支付控制台</h2>
+          <p class="x-admin-panel-copy">维持原生 Django Admin 的 changelist 与 action，把高频执行入口压成战术矩阵。</p>
+        </div>
+      </div>
+      <div class="x-admin-home-route-grid">
+        <a class="x-admin-home-route-card" href="/admin/orders/order/">
+          <span>01</span>
+          <strong>订单管理</strong>
+          <small>订单主列表、支付状态、客户信息与履约状态</small>
+        </a>
+        <a class="x-admin-home-route-card" href="/admin/after_sales/aftersalescase/">
+          <span>02</span>
+          <strong>售后管理</strong>
+          <small>售后单、补发与退款协同操作</small>
+        </a>
+        <a class="x-admin-home-route-card" href="/admin/transactions/refund/">
+          <span>03</span>
+          <strong>退款管理</strong>
+          <small>退款申请、提交状态、成功失败结果</small>
+        </a>
+        <a class="x-admin-home-route-card" href="/admin/transactions/riskassessment/">
+          <span>04</span>
+          <strong>风控观察</strong>
+          <small>人工审核、阻断判断与风险上下文观察</small>
+        </a>
+      </div>
+    </section>
+
+    <section class="module x-admin-home-logistics-module">
+      <div class="x-admin-panel-header">
+        <div class="x-admin-panel-title-group">
+          <h2 class="x-admin-panel-title">物流管理模块</h2>
+          <p class="x-admin-panel-copy">把发货单、物流事件与异常履约处理集中为独立物流工作区。</p>
+        </div>
+      </div>
+      <div class="x-admin-home-route-grid">
+        <a class="x-admin-home-route-card" href="{% url 'admin:shipping_shipment_changelist' %}">
+          <span>01</span>
+          <strong>发货管理</strong>
+          <small>查看发货单、承运商、运单号与送达状态</small>
+        </a>
+        <a class="x-admin-home-route-card" href="{% url 'admin:shipping_shipment_add' %}">
+          <span>02</span>
+          <strong>新增发货单</strong>
+          <small>录入物流渠道、追踪信息与履约状态</small>
+        </a>
+        <a class="x-admin-home-route-card" href="{% url 'admin:shipping_shipmentevent_changelist' %}">
+          <span>03</span>
+          <strong>物流事件</strong>
+          <small>查看状态流转、事件时间与消息记录</small>
+        </a>
+        <a class="x-admin-home-route-card" href="{% url 'admin:shipping_shipment_changelist' %}?status=exception">
+          <span>04</span>
+          <strong>异常件处理</strong>
+          <small>集中跟进物流异常、阻塞件与运营备注</small>
+        </a>
+      </div>
+    </section>
+
+    <section class="module x-admin-home-support-module">
+      <div class="x-admin-panel-header">
+        <div class="x-admin-panel-title-group">
+          <h2 class="x-admin-panel-title">客服中心</h2>
+          <p class="x-admin-panel-copy">集中处理在线会话、离线留言、订单咨询与人工跟进协作。</p>
+        </div>
+      </div>
+      <div class="x-admin-home-route-grid">
+        <a class="x-admin-home-route-card" href="{% url 'support_chat_console' %}">
+          <span>01</span>
+          <strong>客服控制台</strong>
+          <small>进入会话工作台，处理访客咨询与订单问题</small>
+        </a>
+        <a class="x-admin-home-route-card" href="{% url 'admin:support_chat_chatofflinemessage_changelist' %}">
+          <span>02</span>
+          <strong>离线留言</strong>
+          <small>查看留言状态、联系方式与订单关联信息</small>
+        </a>
+        <a class="x-admin-home-route-card" href="{% url 'support_chat_console' %}">
+          <span>03</span>
+          <strong>待处理会话</strong>
+          <small>回到客服主控台继续跟进未关闭会话</small>
+        </a>
+        <a class="x-admin-home-route-card" href="{% url 'backoffice_customers' %}">
+          <span>04</span>
+          <strong>客户工作台</strong>
+          <small>联动客户、订单与客服上下文做统一处理</small>
+        </a>
+      </div>
+    </section>
   </div>
+
+  <section class="module x-admin-secondary-module x-admin-home-system-module">
+    <details class="x-admin-collapsible">
+      <summary class="x-admin-collapsible-summary">
+        <span>
+          <strong>系统模块</strong>
+          <span class="x-admin-collapsible-note">保留原生 Admin app list，作为完整模型入口与低频配置面板。</span>
+        </span>
+      </summary>
+      <div class="x-admin-collapsible-body">
+        {% include "admin/app_list.html" with app_list=app_list show_changelinks=True %}
+      </div>
+    </details>
+  </section>
 </div>
 {% endblock %}

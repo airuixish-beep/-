@@ -1,0 +1,11 @@
+{% extends "admin/base.html" %}
+
+{% block title %}{% if subtitle %}{{ subtitle }} | {% endif %}{{ title }} | {{ site_title }}{% endblock %}
+
+{% block branding %}
+<div class="x-admin-site-branding">
+  <a href="{% url 'admin:index' %}">{{ site_header }}</a>
+</div>
+{% endblock %}
+
+{% block nav-global %}{% endblock %}

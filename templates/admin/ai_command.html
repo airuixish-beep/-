@@ -1,0 +1,109 @@
+{% extends "admin/_xuanor_shell.html" %}
+
+{% block x_admin_content %}
+<div class="x-admin-custom-page-grid x-admin-ai-grid">
+  <section class="module x-admin-custom-page-hero">
+    <div class="x-admin-custom-page-hero-copy">
+      <div class="x-admin-tactical-tag">Strategic Entry / AI Command</div>
+      <div class="x-admin-panel-title-group">
+        <h2 class="x-admin-panel-title">🦞 AI 指挥入口</h2>
+        <p class="x-admin-panel-copy">当前范围：{{ filters.label }} · {{ filters.currency_label }}。先看 AI 给出的风险优先级、支付异常和退款压力，再分流到具体后台执行。</p>
+      </div>
+      <div class="x-admin-home-hero-actions">
+        <a class="x-admin-button is-primary" href="{% url 'trade_cockpit_dashboard' %}">战情驾驶舱</a>
+        <a class="x-admin-button" href="{% url 'payment_console' %}">支付控制台</a>
+        <a class="x-admin-button" href="{% url 'admin:transactions_riskassessment_changelist' %}">风控观察</a>
+      </div>
+    </div>
+    <div class="x-admin-custom-page-status-stack">
+      {% for metric in ai_command_metrics %}
+      <div class="trade-cockpit-command-cell {{ metric.variant }}">
+        <span>{{ metric.label }}</span>
+        <strong>{{ metric.value }}</strong>
+        <small>{{ metric.detail }}</small>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="module dashboard-toolbar x-admin-callout trade-cockpit-command-bar">
+    <div class="trade-cockpit-command-layout">
+      <div class="trade-cockpit-command-brief">
+        <div class="x-admin-panel-title-group">
+          <h2 class="x-admin-panel-title">🦞 AI 指挥动作</h2>
+          <p class="x-admin-panel-copy">把 AI 参谋建议压缩成可执行的操作入口，优先消化风险、支付和退款告警。</p>
+        </div>
+        <div class="x-admin-radar-headline">
+          <span>AI Mission</span>
+          <span>{{ filters.label }}</span>
+          <span>{{ filters.currency_label }}</span>
+        </div>
+      </div>
+      <div class="trade-cockpit-command-actions">
+        {% for action in ai_command_actions %}
+        <a href="{{ action.url }}" class="x-admin-button{% if forloop.first %} is-primary{% endif %}">{{ action.label }}</a>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+
+  {% include "admin/trade_cockpit/components/copilot_panel.html" %}
+
+  <div class="x-admin-panel-grid trade-cockpit-tactical-grid">
+    <section class="module x-admin-custom-page-section-card">
+      <div class="x-admin-panel-header">
+        <div class="x-admin-panel-title-group">
+          <h2 class="x-admin-panel-title">最近风险告警</h2>
+          <p class="x-admin-panel-copy">优先处理最近的 review / block 交易，避免异常单继续向下游扩散。</p>
+        </div>
+      </div>
+      <div class="x-admin-custom-page-link-grid">
+        {% for alert in alerts %}
+        <a class="x-admin-home-route-card" href="{% url 'admin:transactions_riskassessment_changelist' %}">
+          <span>0{{ forloop.counter }}</span>
+          <strong>{{ alert.transaction.order.order_number }}</strong>
+          <small>{{ alert.get_decision_display }} · score {{ alert.score }}</small>
+        </a>
+        {% empty %}
+        <article class="x-admin-home-route-card">
+          <span>01</span>
+          <strong>暂无风险告警</strong>
+          <small>当前筛选范围没有 AI 需要优先升级的风险交易。</small>
+        </article>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="module x-admin-custom-page-section-card">
+      <div class="x-admin-panel-header">
+        <div class="x-admin-panel-title-group">
+          <h2 class="x-admin-panel-title">资金压力摘要</h2>
+          <p class="x-admin-panel-copy">从退款和手续费角度快速判断是否需要切换到支付或账务工作台继续深入。</p>
+        </div>
+      </div>
+      <div class="x-admin-custom-page-link-grid">
+        <article class="x-admin-home-route-card">
+          <span>01</span>
+          <strong>退款规模</strong>
+          <small>{{ funds_flow.refund_amount }}</small>
+        </article>
+        <article class="x-admin-home-route-card">
+          <span>02</span>
+          <strong>手续费</strong>
+          <small>{{ funds_flow.fee_amount }}</small>
+        </article>
+        <article class="x-admin-home-route-card">
+          <span>03</span>
+          <strong>净资金</strong>
+          <small>{{ funds_flow.net_amount }}</small>
+        </article>
+        <article class="x-admin-home-route-card">
+          <span>04</span>
+          <strong>账务流水</strong>
+          <small>{{ funds_flow.ledger_transactions_count }} 笔</small>
+        </article>
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}

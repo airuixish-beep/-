@@ -1,0 +1,141 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls static admin_modify %}
+
+{% block extrahead %}{{ block.super }}
+<script src="{% url 'admin:jsi18n' %}"></script>
+{{ media }}
+{% endblock %}
+
+{% block extrastyle %}{{ block.super }}<link rel="stylesheet" href="{% static 'admin/css/forms.css' %}">{% endblock %}
+
+{% block coltype %}colM{% endblock %}
+{% block bodyclass %}{{ block.super }} dashboard app-{{ opts.app_label }} model-{{ opts.model_name }} change-form{% endblock %}
+
+{% if not is_popup %}
+{% block breadcrumbs %}
+<a href="{% url 'admin:index' %}">{% translate 'Home' %}</a>
+<span>/</span>
+<a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a>
+<span>/</span>
+{% if has_view_permission %}<a href="{% url opts|admin_urlname:'changelist' %}">{{ opts.verbose_name_plural|capfirst }}</a>{% else %}<span>{{ opts.verbose_name_plural|capfirst }}</span>{% endif %}
+<span>/</span>
+<span>{% if add %}{% blocktranslate with name=opts.verbose_name %}Add {{ name }}{% endblocktranslate %}{% else %}{{ original|truncatewords:'18' }}{% endif %}</span>
+{% endblock %}
+{% endif %}
+
+{% block content_title %}{% endblock %}
+{% block content_subtitle %}{% endblock %}
+
+{% block content %}<div id="content-main" class="x-admin-native-page x-admin-native-changeform-page">
+  <section class="module x-admin-native-hero">
+    <div class="x-admin-native-hero-copy">
+      <div class="x-admin-tactical-tag">Native Admin / Change Form</div>
+      <div class="x-admin-panel-title-group">
+        <h2 class="x-admin-panel-title">{{ title }}</h2>
+        <p class="x-admin-panel-copy">{% if subtitle %}{{ subtitle }}{% else %}保留 Django Admin 原生表单、内联和提交逻辑，只把编辑页的层级、动作区和信息块收进统一中控语言。{% endif %}</p>
+      </div>
+      {% block object-tools %}
+      {% if change and not is_popup %}
+        <div class="x-admin-filter-actions x-admin-page-section-actions">
+          {% block object-tools-items %}
+            {% change_form_object_tools %}
+          {% endblock %}
+        </div>
+      {% endif %}
+      {% endblock %}
+    </div>
+    <div class="x-admin-native-hero-side">
+      <div class="x-admin-home-command-box is-cyan">
+        <span>Model</span>
+        <strong>{{ opts.verbose_name|capfirst }}</strong>
+        <small>{{ opts.app_config.verbose_name }}</small>
+      </div>
+      <div class="x-admin-home-command-box is-violet">
+        <span>Mode</span>
+        <strong>{% if add %}Create{% else %}Edit{% endif %}</strong>
+        <small>{% if change %}当前正在编辑现有记录{% else %}当前正在创建新记录{% endif %}</small>
+      </div>
+      <div class="x-admin-home-command-box is-danger">
+        <span>Inline Sets</span>
+        <strong>{{ inline_admin_formsets|length }}</strong>
+        <small>相关对象与扩展编辑区域数量</small>
+      </div>
+    </div>
+  </section>
+
+  <div class="trade-cockpit-command-metrics x-admin-native-command-grid">
+    <article class="trade-cockpit-command-cell is-gmv">
+      <span>Permissions</span>
+      <strong>{% if has_view_permission %}View{% else %}Restricted{% endif %}</strong>
+      <small>当前对象访问权限状态</small>
+    </article>
+    <article class="trade-cockpit-command-cell is-paid-rate">
+      <span>Fieldsets</span>
+      <strong>{{ adminform|length }}</strong>
+      <small>表单字段分组数量</small>
+    </article>
+    <article class="trade-cockpit-command-cell is-alerts">
+      <span>Media</span>
+      <strong>{% if has_file_field %}Upload{% else %}Form{% endif %}</strong>
+      <small>文件上传与原生媒体逻辑保持可用</small>
+    </article>
+    <article class="trade-cockpit-command-cell is-net">
+      <span>Submit Layer</span>
+      <strong>{% if save_on_top %}Dual{% else %}Bottom{% endif %}</strong>
+      <small>保留 Django Admin 原生提交按钮行为</small>
+    </article>
+  </div>
+
+  <section class="module x-admin-native-form-stage">
+    <div class="x-admin-panel-header">
+      <div class="x-admin-panel-title-group">
+        <h3 class="x-admin-panel-title">编辑主屏</h3>
+        <p class="x-admin-panel-copy">字段、内联、预填与提交逻辑不变，只做视觉与布局压缩。</p>
+      </div>
+    </div>
+    <form {% if has_file_field %}enctype="multipart/form-data" {% endif %}{% if form_url %}action="{{ form_url }}" {% endif %}method="post" id="{{ opts.model_name }}_form" class="x-admin-change-form" novalidate>{% csrf_token %}{% block form_top %}{% endblock %}
+    <div class="x-admin-change-form-body">
+    {% if is_popup %}<input type="hidden" name="{{ is_popup_var }}" value="1">{% endif %}
+    {% if to_field %}<input type="hidden" name="{{ to_field_var }}" value="{{ to_field }}">{% endif %}
+    {% if save_on_top %}{% block submit_buttons_top %}{% submit_row %}{% endblock %}{% endif %}
+    {% if errors %}
+        <p class="errornote">
+        {% blocktranslate count counter=errors|length %}Please correct the error below.{% plural %}Please correct the errors below.{% endblocktranslate %}
+        </p>
+        {{ adminform.form.non_field_errors }}
+    {% endif %}
+
+    {% block field_sets %}
+    {% for fieldset in adminform %}
+      {% include 'admin/includes/fieldset.html' %}
+    {% endfor %}
+    {% endblock %}
+
+    {% block after_field_sets %}{% endblock %}
+
+    {% block inline_field_sets %}
+    {% for inline_admin_formset in inline_admin_formsets %}
+        {% include inline_admin_formset.opts.template %}
+    {% endfor %}
+    {% endblock %}
+
+    {% block after_related_objects %}{% endblock %}
+
+    {% block submit_buttons_bottom %}{% submit_row %}{% endblock %}
+
+    {% block admin_change_form_document_ready %}
+        <script id="django-admin-form-add-constants"
+                src="{% static 'admin/js/change_form.js' %}"
+                {% if adminform and add %}
+                    data-model-name="{{ opts.model_name }}"
+                {% endif %}
+                async>
+        </script>
+    {% endblock %}
+
+    {% prepopulated_fields_js %}
+
+    </div>
+    </form>
+  </section></div>
+{% endblock %}

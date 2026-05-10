@@ -1,0 +1,50 @@
+<aside class="x-admin-sidebar">
+  <div class="x-admin-brand-panel">
+    <div class="x-admin-brand">
+      <div class="x-admin-brand-mark-row">
+        <span class="x-admin-brand-mark">X</span>
+        <div class="x-admin-brand-system-copy">
+          <div class="x-admin-brand-eyebrow">Trade Command Cockpit</div>
+          <div class="x-admin-brand-microcopy">Global Trade Defense System</div>
+        </div>
+      </div>
+      <h1 class="x-admin-brand-title">交易履约指挥中枢</h1>
+      <div class="x-admin-brand-subtitle">统一管理订单、支付、账务、风控、客服、发货、售后与经营分析。</div>
+    </div>
+
+    {% if x_admin_sidebar_note %}
+    <div class="x-admin-sidebar-note">{{ x_admin_sidebar_note }}</div>
+    {% endif %}
+  </div>
+
+  <div class="x-admin-nav-groups">
+    {% for group in x_admin_nav_groups %}
+    <section class="x-admin-nav-group">
+      <h2 class="x-admin-nav-title">{{ group.title }}</h2>
+      <div class="x-admin-nav-list">
+        {% for item in group.items %}
+        <a href="{{ item.url }}" class="x-admin-nav-link{% if item.key == x_admin_active_nav %} is-active{% endif %}">
+          <span class="x-admin-nav-icon{% if item.key == 'ai_command' %} has-emoji{% elif item.key == 'traffic' %} is-radar{% endif %}" aria-hidden="true">{% if item.key == 'ai_command' %}🦞{% elif item.key == 'traffic' %}◉{% endif %}</span>
+          <span class="x-admin-nav-label">
+            <strong>{{ item.label }}</strong>
+            {% if item.description %}<span>{{ item.description }}</span>{% endif %}
+          </span>
+          {% if item.badge %}<span class="x-admin-nav-badge">{{ item.badge }}</span>{% endif %}
+        </a>
+        {% endfor %}
+      </div>
+    </section>
+    {% endfor %}
+  </div>
+
+  <div class="x-admin-sidebar-footer">
+    <div class="x-admin-sidebar-footer-label">Operator</div>
+    <div class="x-admin-sidebar-footer-value">
+      {% if user.is_authenticated %}
+        {{ user.get_username }}
+      {% else %}
+        XUANOR Admin
+      {% endif %}
+    </div>
+  </div>
+</aside>

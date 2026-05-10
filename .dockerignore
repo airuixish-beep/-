@@ -7,9 +7,11 @@ __pycache__/
 .gitignore
 .DS_Store
 .env
+.env.*
 media/
 staticfiles/
 db.sqlite3
+deploy/certs/
 *.sql
 *.sql.gz
 data.json

@@ -1,0 +1,82 @@
+{% extends "admin/_xuanor_shell.html" %}
+
+{% block x_admin_content %}
+<div class="x-admin-custom-page-grid x-admin-settings-grid">
+  <section class="module x-admin-custom-page-hero">
+    <div class="x-admin-custom-page-hero-copy">
+      <div class="x-admin-tactical-tag">Strategic Entry / Settings</div>
+      <div class="x-admin-panel-title-group">
+        <h2 class="x-admin-panel-title">设置入口页</h2>
+        <p class="x-admin-panel-copy">统一整理站点、商品和履约交易的常用配置入口，先服务运营工作流，不直接改动底层部署配置。</p>
+      </div>
+      <div class="x-admin-home-hero-actions">
+        <a class="x-admin-button is-primary" href="{% url 'admin:core_siteconfig_changelist' %}">站点配置</a>
+        <a class="x-admin-button" href="{% url 'admin:products_category_changelist' %}">商品分类</a>
+        <a class="x-admin-button" href="{% url 'trade_cockpit_dashboard' %}">战情驾驶舱</a>
+      </div>
+    </div>
+    <div class="x-admin-custom-page-status-stack">
+      <div class="x-admin-home-command-box is-cyan">
+        <span>Brand</span>
+        <strong>Site Config</strong>
+        <small>站点基础信息与品牌内容</small>
+      </div>
+      <div class="x-admin-home-command-box is-violet">
+        <span>Catalog</span>
+        <strong>Product Structure</strong>
+        <small>商品、分类、变体与库存入口</small>
+      </div>
+      <div class="x-admin-home-command-box is-danger">
+        <span>Ops Config</span>
+        <strong>Fulfillment</strong>
+        <small>发货、退款、风控等运营入口</small>
+      </div>
+    </div>
+  </section>
+
+  <div class="trade-cockpit-command-metrics x-admin-custom-page-command-grid">
+    <article class="trade-cockpit-command-cell is-gmv">
+      <span>Core Config</span>
+      <strong>Site</strong>
+      <small>站点与品牌基础设置</small>
+    </article>
+    <article class="trade-cockpit-command-cell is-paid-rate">
+      <span>Catalog</span>
+      <strong>Products</strong>
+      <small>商品结构、分类与变体管理</small>
+    </article>
+    <article class="trade-cockpit-command-cell is-alerts">
+      <span>Ops</span>
+      <strong>Shipping / Refund</strong>
+      <small>履约与交易相关后台入口</small>
+    </article>
+    <article class="trade-cockpit-command-cell is-net">
+      <span>Control View</span>
+      <strong>Unified Access</strong>
+      <small>减少直接暴露底层配置的心智负担</small>
+    </article>
+  </div>
+
+  <div class="x-admin-custom-page-sections">
+    {% for section in setting_sections %}
+    <section class="module x-admin-custom-page-section-card">
+      <div class="x-admin-panel-header">
+        <div class="x-admin-panel-title-group">
+          <h2 class="x-admin-panel-title">{{ section.title }}</h2>
+          <p class="x-admin-panel-copy">{{ section.description }}</p>
+        </div>
+      </div>
+      <div class="x-admin-custom-page-link-grid">
+        {% for link in section.links %}
+        <a class="x-admin-home-route-card" href="{{ link.url }}">
+          <span>0{{ forloop.counter }}</span>
+          <strong>{{ link.label }}</strong>
+          <small>{{ section.title }}配置入口</small>
+        </a>
+        {% endfor %}
+      </div>
+    </section>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

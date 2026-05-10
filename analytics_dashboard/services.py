@@ -5,6 +5,7 @@ from decimal import Decimal
 from django.conf import settings
 from django.db.models import Count, Max, OuterRef, Q, Subquery, Sum
 from django.db.models.functions import TruncDate
+from django.urls import reverse
 from django.utils import timezone
 
 from orders.models import Order, OrderItem
@@ -120,8 +121,524 @@ def build_quiz_dashboard_context(filters):
     }
 
 
+def build_traffic_hub_context(filters):
+    quiz_context = build_quiz_dashboard_context(filters)
+    traffic_summary = quiz_context["quiz_summary"]
+    traffic_attribution = quiz_context["quiz_attribution"]
+    traffic_sources = traffic_attribution["sources"]
+    traffic_mediums = traffic_attribution["mediums"]
+    traffic_campaigns = traffic_attribution["campaigns"]
+    traffic_trends = get_traffic_trends(filters)
+    traffic_situation = get_traffic_situation_panel(filters, traffic_summary, traffic_sources, traffic_mediums, traffic_campaigns, traffic_trends)
+    recent_submissions = traffic_summary["recent_submissions"]
+    top_leads = traffic_summary["lead_rows"][:5]
+    traffic_attribution_matrix = get_traffic_attribution_matrix(traffic_sources, traffic_mediums, traffic_campaigns)
+    traffic_intelligence = get_traffic_intelligence_panel(traffic_summary, top_leads, recent_submissions)
+    traffic_result_zone = get_traffic_result_zone(traffic_summary)
+    traffic_conversion_routes = get_traffic_conversion_routes()
+    action_sections = get_traffic_action_sections()
+    traffic_placeholders = get_marketing_placeholders()
+    traffic_terminal_zone = get_traffic_terminal_zone(traffic_placeholders, action_sections)
+
+    return {
+        "traffic_summary": traffic_summary,
+        "traffic_attribution": traffic_attribution,
+        "traffic_sources": traffic_sources,
+        "traffic_mediums": traffic_mediums,
+        "traffic_campaigns": traffic_campaigns,
+        "traffic_placeholders": traffic_placeholders,
+        "traffic_semantics": {
+            "scope": "当前流量口径基于五行测试提交记录携带的 UTM 来源，不代表全站会话、广告花费或真实流量平台报表。",
+            "submissions": "按测试提交时间统计来源与线索沉淀。",
+            "attribution": "按提交记录携带的 source / medium / campaign 聚合。",
+            "leads": "按提交记录里的留资邮箱统计线索沉淀。",
+        },
+        "traffic_situation": traffic_situation,
+        "traffic_command_metrics": [
+            {
+                "variant": "is-gmv",
+                "label": "来源数",
+                "value": str(len(traffic_sources)),
+                "detail": "当前范围内出现过的 source 数量",
+            },
+            {
+                "variant": "is-paid-rate",
+                "label": "介质数",
+                "value": str(len(traffic_mediums)),
+                "detail": "当前范围内出现过的 medium 数量",
+            },
+            {
+                "variant": "is-alerts",
+                "label": "活动数",
+                "value": str(len(traffic_campaigns)),
+                "detail": "当前范围内出现过的 campaign 数量",
+            },
+            {
+                "variant": "is-net",
+                "label": "测试提交",
+                "value": str(traffic_summary["total_submissions"]),
+                "detail": f"留资 {traffic_summary['lead_count']} / 留资率 {traffic_summary['lead_rate']}%",
+            },
+        ],
+        "traffic_overview": [
+            {
+                "variant": "is-cyan",
+                "label": "Top Source",
+                "title": traffic_sources[0]["label"] if traffic_sources else "直接访问",
+                "detail": f"{traffic_sources[0]['count']} 次提交" if traffic_sources else "当前范围暂无来源数据",
+            },
+            {
+                "variant": "is-violet",
+                "label": "Top Medium",
+                "title": traffic_mediums[0]["label"] if traffic_mediums else "未标记 medium",
+                "detail": f"{traffic_mediums[0]['count']} 次提交" if traffic_mediums else "当前范围暂无介质数据",
+            },
+            {
+                "variant": "is-danger",
+                "label": "Top Campaign",
+                "title": traffic_campaigns[0]["label"] if traffic_campaigns else "未标记 campaign",
+                "detail": f"{traffic_campaigns[0]['count']} 次提交" if traffic_campaigns else "当前范围暂无活动数据",
+            },
+        ],
+        "traffic_trends": traffic_trends,
+        "traffic_attribution_matrix": traffic_attribution_matrix,
+        "traffic_intelligence": traffic_intelligence,
+        "traffic_result_zone": traffic_result_zone,
+        "traffic_conversion_routes": traffic_conversion_routes,
+        "traffic_terminal_zone": traffic_terminal_zone,
+        "traffic_submission_cards": [
+            {
+                "label": "测试提交",
+                "value": str(traffic_summary["total_submissions"]),
+                "detail": "当前范围内的总测试提交数。",
+            },
+            {
+                "label": "留资数量",
+                "value": str(traffic_summary["lead_count"]),
+                "detail": "已留下邮箱的线索数量。",
+            },
+            {
+                "label": "留资率",
+                "value": f"{traffic_summary['lead_rate']}%",
+                "detail": "留资邮箱 / 测试提交数。",
+            },
+            {
+                "label": "结果类型",
+                "value": str(len(traffic_summary["result_counts"])),
+                "detail": "当前范围内出现的主导结果数。",
+            },
+        ],
+        "traffic_top_result_rows": [
+            {
+                "label": label,
+                "count": count,
+            }
+            for label, count in list(traffic_summary["result_counts"].items())[:5]
+        ],
+        "traffic_recent_submissions": recent_submissions[:5],
+        "traffic_top_leads": top_leads,
+        "traffic_action_sections": action_sections,
+    }
+
+
+def get_traffic_trends(filters):
+    submissions = _quiz_submissions(filters)
+    submission_counts = {
+        row["day"]: row["submission_count"]
+        for row in submissions.annotate(day=TruncDate("created_at")).values("day").annotate(submission_count=Count("id")).order_by("day")
+    }
+    lead_counts = {
+        row["day"]: row["lead_count"]
+        for row in submissions.exclude(respondent_email="")
+        .annotate(day=TruncDate("created_at"))
+        .values("day")
+        .annotate(lead_count=Count("id"))
+        .order_by("day")
+    }
+
+    days = list(_date_range(filters.start_date, filters.end_date))
+    max_submission_count = max(submission_counts.values(), default=0)
+    max_lead_count = max(lead_counts.values(), default=0)
+    rows = []
+
+    for day in days:
+        submission_count = submission_counts.get(day, 0)
+        lead_count = lead_counts.get(day, 0)
+        rows.append(
+            {
+                "date": day,
+                "date_label": day.strftime("%m-%d"),
+                "submission_count": submission_count,
+                "lead_count": lead_count,
+                "submission_width": _width(submission_count, max_submission_count),
+                "lead_width": _width(lead_count, max_lead_count),
+            }
+        )
+
+    return {
+        "rows": rows,
+        "days": days,
+        "max_submission_count": max_submission_count,
+        "max_lead_count": max_lead_count,
+    }
+
+
+def get_traffic_attribution_matrix(traffic_sources, traffic_mediums, traffic_campaigns):
+    lanes = [
+        {
+            "label": "Source",
+            "headline": traffic_sources[0]["label"] if traffic_sources else "直接访问",
+            "detail": f"{traffic_sources[0]['count']} 次提交" if traffic_sources else "当前范围暂无来源数据",
+            "variant": "is-cyan",
+            "rows": traffic_sources[:4],
+            "empty_label": "当前时间范围暂无来源数据。",
+        },
+        {
+            "label": "Medium",
+            "headline": traffic_mediums[0]["label"] if traffic_mediums else "未标记 medium",
+            "detail": f"{traffic_mediums[0]['count']} 次提交" if traffic_mediums else "当前范围暂无介质数据",
+            "variant": "is-violet",
+            "rows": traffic_mediums[:4],
+            "empty_label": "当前时间范围暂无 medium 数据。",
+        },
+        {
+            "label": "Campaign",
+            "headline": traffic_campaigns[0]["label"] if traffic_campaigns else "未标记 campaign",
+            "detail": f"{traffic_campaigns[0]['count']} 次提交" if traffic_campaigns else "当前范围暂无活动数据",
+            "variant": "is-amber",
+            "rows": traffic_campaigns[:4],
+            "empty_label": "当前时间范围暂无 campaign 数据。",
+        },
+    ]
+
+    return {
+        "lanes": lanes,
+        "headline_cards": [
+            {
+                "label": lane["label"],
+                "value": lane["headline"],
+                "detail": lane["detail"],
+                "variant": lane["variant"],
+            }
+            for lane in lanes
+        ],
+    }
+
+
+def get_traffic_intelligence_panel(traffic_summary, top_leads, recent_submissions):
+    lead_count = traffic_summary["lead_count"]
+    total_submissions = traffic_summary["total_submissions"]
+    missing_email_count = max(total_submissions - lead_count, 0)
+    lead_rate = traffic_summary["lead_rate"]
+    result_counts = list(traffic_summary["result_counts"].items())
+    top_result_label, top_result_count = result_counts[0] if result_counts else ("暂无结果", 0)
+
+    triage_cards = [
+        {
+            "label": "高频留资",
+            "value": str(len(top_leads)),
+            "detail": "当前窗口内可优先跟进的邮箱线索",
+            "variant": "is-cyan",
+        },
+        {
+            "label": "未留资提交",
+            "value": str(missing_email_count),
+            "detail": f"留资率 {lead_rate}%",
+            "variant": "is-danger",
+        },
+        {
+            "label": "主导热点",
+            "value": top_result_label,
+            "detail": f"{top_result_count} 次主导结果",
+            "variant": "is-violet",
+        },
+    ]
+
+    lead_rows = [
+        {
+            "title": row["respondent_email"],
+            "subtitle": "高频留资邮箱",
+            "metric": row["count"],
+        }
+        for row in top_leads[:4]
+    ]
+
+    dispatch_rows = [
+        {
+            "title": submission.respondent_email or "未留资",
+            "subtitle": f"{submission.created_at.strftime('%m-%d %H:%M')} / {submission.primary_profile.name if submission.primary_profile else '-'}",
+            "metric": "线索" if submission.respondent_email else "观察",
+        }
+        for submission in recent_submissions[:4]
+    ]
+
+    return {
+        "triage_cards": triage_cards,
+        "lead_rows": lead_rows,
+        "dispatch_rows": dispatch_rows,
+    }
+
+
+def get_traffic_result_zone(traffic_summary):
+    result_rows = [
+        {
+            "label": label,
+            "count": count,
+            "detail": "主导结果热区",
+            "variant": variant,
+        }
+        for (label, count), variant in zip(
+            list(traffic_summary["result_counts"].items())[:5],
+            ["is-cyan", "is-violet", "is-danger", "is-cyan", "is-violet"],
+        )
+    ]
+
+    return {
+        "summary_cards": [
+            {
+                "label": "测试提交",
+                "value": str(traffic_summary["total_submissions"]),
+                "detail": "当前范围内的总测试提交数。",
+                "variant": "is-cyan",
+            },
+            {
+                "label": "留资数量",
+                "value": str(traffic_summary["lead_count"]),
+                "detail": "已留下邮箱的线索数量。",
+                "variant": "is-violet",
+            },
+            {
+                "label": "留资率",
+                "value": f"{traffic_summary['lead_rate']}%",
+                "detail": "留资邮箱 / 测试提交数。",
+                "variant": "is-danger",
+            },
+            {
+                "label": "结果类型",
+                "value": str(len(traffic_summary["result_counts"])),
+                "detail": "当前范围内出现的主导结果数。",
+                "variant": "is-cyan",
+            },
+        ],
+        "result_rows": result_rows,
+    }
+
+
+def get_traffic_conversion_routes():
+    return {
+        "title": "转化分流",
+        "description": "把这波流量直接分流到提交后台和客户协同面，继续处理线索沉淀。",
+        "routes": [
+            {
+                "label": "全部提交",
+                "detail": "当前时间范围的所有测试提交。",
+                "variant": "is-cyan",
+            },
+            {
+                "label": "有留资提交",
+                "detail": "仅查看留下邮箱的线索。",
+                "variant": "is-violet",
+            },
+            {
+                "label": "未留资提交",
+                "detail": "定位只完成测试但没有沉淀邮箱的记录。",
+                "variant": "is-danger",
+            },
+        ],
+    }
+
+
+def get_traffic_action_sections():
+    return [
+        {
+            "title": "继续分析",
+            "description": "先看流量归因，再切换到经营分析或五行测试继续深入判断。",
+            "links": [
+                {"label": "经营分析", "url": reverse("analytics_dashboard:index"), "variant": "is-cyan"},
+                {"label": "五行测试统计", "url": reverse("analytics_dashboard:quiz"), "variant": "is-violet"},
+            ],
+        },
+        {
+            "title": "继续执行",
+            "description": "进入提交后台和客户工作台，继续处理留资、线索跟进和转化协同。",
+            "links": [
+                {"label": "提交后台", "url": reverse("admin:pages_fiveelementsubmission_changelist"), "variant": "is-cyan"},
+                {"label": "客户工作台", "url": reverse("backoffice_customers"), "variant": "is-danger"},
+            ],
+        },
+    ]
+
+
+def get_traffic_terminal_zone(placeholders, action_sections):
+    action_cards = []
+    for section in action_sections:
+        for link in section["links"]:
+            action_cards.append(
+                {
+                    "section_title": section["title"],
+                    "section_description": section["description"],
+                    "label": link["label"],
+                    "url": link["url"],
+                    "variant": link.get("variant", "is-cyan"),
+                }
+            )
+
+    roadmap_cards = [
+        {
+            "title": item["title"],
+            "description": item["description"],
+            "variant": variant,
+        }
+        for item, variant in zip(placeholders, ["is-cyan", "is-violet", "is-danger", "is-cyan"])
+    ]
+
+    return {
+        "title": "终端行动区",
+        "description": "上层先做当前线索分流，下层标记待接入的数据能力，保持观察与执行在同一块甲板上。",
+        "action_cards": action_cards,
+        "roadmap_cards": roadmap_cards,
+    }
+
+
+def get_traffic_situation_panel(filters, traffic_summary, traffic_sources, traffic_mediums, traffic_campaigns, traffic_trends):
+    rows = traffic_trends["rows"]
+    total_submissions = traffic_summary["total_submissions"]
+    lead_count = traffic_summary["lead_count"]
+    lead_rate = traffic_summary["lead_rate"]
+    source_count = len(traffic_sources)
+    medium_count = len(traffic_mediums)
+    campaign_count = len(traffic_campaigns)
+    max_submission_count = traffic_trends["max_submission_count"]
+    max_lead_count = traffic_trends["max_lead_count"]
+
+    chart_width = 760
+    chart_height = 260
+    chart_padding_x = 44
+    chart_padding_top = 26
+    chart_padding_bottom = 38
+    plot_width = chart_width - (chart_padding_x * 2)
+    plot_height = chart_height - chart_padding_top - chart_padding_bottom
+    point_count = max(len(rows), 1)
+    step_x = plot_width / max(point_count - 1, 1)
+
+    submission_line_points = []
+    lead_line_points = []
+    chart_points = []
+
+    for index, row in enumerate(rows):
+        x = chart_padding_x + (index * step_x)
+        submission_ratio = 0 if max_submission_count == 0 else row["submission_count"] / max_submission_count
+        lead_ratio = 0 if max_lead_count == 0 else row["lead_count"] / max_lead_count
+        submission_y = chart_padding_top + (plot_height * (1 - submission_ratio))
+        lead_y = chart_padding_top + (plot_height * (1 - lead_ratio))
+        chart_points.append(
+            {
+                **row,
+                "x": round(x, 1),
+                "submission_y": round(submission_y, 1),
+                "lead_y": round(lead_y, 1),
+            }
+        )
+        submission_line_points.append((x, submission_y))
+        lead_line_points.append((x, lead_y))
+
+    peak_submission_row = max(rows, key=lambda row: row["submission_count"], default=None)
+    peak_lead_row = max(rows, key=lambda row: row["lead_count"], default=None)
+    latest_row = rows[-1] if rows else None
+
+    pressure_bars = [
+        {
+            "label": "提交压力",
+            "count": total_submissions,
+            "hint": "当前范围总提交",
+            "width": _width(total_submissions, max(total_submissions, lead_count, 1)),
+            "variant": "is-cyan",
+        },
+        {
+            "label": "留资沉淀",
+            "count": lead_count,
+            "hint": f"留资率 {lead_rate}%",
+            "width": _width(lead_count, max(total_submissions, lead_count, 1)),
+            "variant": "is-violet",
+        },
+        {
+            "label": "来源分散度",
+            "count": source_count,
+            "hint": f"介质 {medium_count} / 活动 {campaign_count}",
+            "width": _width(source_count, max(source_count, medium_count, campaign_count, 1)),
+            "variant": "is-amber",
+        },
+    ]
+
+    intel_cards = [
+        {
+            "label": "峰值提交日",
+            "value": peak_submission_row["date_label"] if peak_submission_row else "--",
+            "detail": f"{peak_submission_row['submission_count']} 次提交" if peak_submission_row else "当前范围暂无提交节奏",
+        },
+        {
+            "label": "峰值留资日",
+            "value": peak_lead_row["date_label"] if peak_lead_row else "--",
+            "detail": f"{peak_lead_row['lead_count']} 个留资" if peak_lead_row else "当前范围暂无留资沉淀",
+        },
+        {
+            "label": "当前窗口",
+            "value": latest_row["date_label"] if latest_row else "--",
+            "detail": (
+                f"提交 {latest_row['submission_count']} / 留资 {latest_row['lead_count']}"
+                if latest_row
+                else "当前范围暂无最新窗口数据"
+            ),
+        },
+    ]
+
+    axis_labels = []
+    if rows:
+        axis_indexes = sorted({0, len(rows) // 2, len(rows) - 1})
+        axis_labels = [{"x": chart_points[index]["x"], "label": rows[index]["date_label"]} for index in axis_indexes]
+
+    return {
+        "title": "提交流量态势主屏",
+        "subtitle": "把提交节奏、留资沉淀和来源分散度压到同一块主屏里，先判断当前这波流量是否值得继续追踪。",
+        "window_label": f"{filters.label} · {filters.currency_label}",
+        "summary_metrics": [
+            {"label": "测试提交", "value": str(total_submissions), "detail": "当前观察窗口总提交"},
+            {"label": "留资沉淀", "value": str(lead_count), "detail": f"留资率 {lead_rate}%"},
+            {"label": "来源分层", "value": str(source_count), "detail": f"介质 {medium_count} / 活动 {campaign_count}"},
+        ],
+        "svg": {
+            "width": chart_width,
+            "height": chart_height,
+            "plot_bottom": chart_padding_top + plot_height,
+            "submission_path": _build_svg_path(submission_line_points),
+            "lead_path": _build_svg_path(lead_line_points),
+            "points": chart_points,
+            "axis_labels": axis_labels,
+        },
+        "overlay": {
+            "peak_label": (
+                f"峰值提交 {peak_submission_row['submission_count']} / {peak_submission_row['date_label']}"
+                if peak_submission_row
+                else "当前范围暂无提交峰值"
+            ),
+            "current_label": (
+                f"当前窗口 提交 {latest_row['submission_count']} · 留资 {latest_row['lead_count']}"
+                if latest_row
+                else "当前窗口暂无数据"
+            ),
+        },
+        "pressure_bars": pressure_bars,
+        "intel_cards": intel_cards,
+        "legend": [
+            {"label": "提交主线", "variant": "is-cyan"},
+            {"label": "留资副线", "variant": "is-violet"},
+            {"label": "右侧态势条", "variant": "is-amber"},
+        ],
+    }
+
+
 def get_kpis(filters):
-    orders = _filter_by_date(Order.objects.filter(currency=filters.currency), "created_at", filters)
+    orders = _filter_by_date(Order.objects.filter(**_currency_filter("currency", filters.currency)), "created_at", filters)
     paid_orders = _paid_orders(filters)
     paid_transactions = _paid_transactions(filters)
     succeeded_refunds = _succeeded_refunds(filters)
@@ -153,7 +670,7 @@ def get_kpis(filters):
 def get_order_trends(filters):
     order_counts = {
         row["day"]: row["order_count"]
-        for row in _filter_by_date(Order.objects.filter(currency=filters.currency), "created_at", filters)
+        for row in _filter_by_date(Order.objects.filter(**_currency_filter("currency", filters.currency)), "created_at", filters)
         .annotate(day=TruncDate("created_at"))
         .values("day")
         .annotate(order_count=Count("id"))
@@ -205,8 +722,8 @@ def get_order_trends(filters):
 
 
 def get_status_breakdowns(filters):
-    orders = _filter_by_date(Order.objects.filter(currency=filters.currency), "created_at", filters)
-    payments = _filter_by_date(Payment.objects.filter(currency=filters.currency), "created_at", filters)
+    orders = _filter_by_date(Order.objects.filter(**_currency_filter("currency", filters.currency)), "created_at", filters)
+    payments = _filter_by_date(Payment.objects.filter(**_currency_filter("currency", filters.currency)), "created_at", filters)
 
     return {
         "orders": _status_rows(orders, "status", Order.Status.choices),
@@ -216,7 +733,7 @@ def get_status_breakdowns(filters):
 
 
 def get_payment_summary(filters):
-    payments = _filter_by_date(Payment.objects.filter(currency=filters.currency), "created_at", filters)
+    payments = _filter_by_date(Payment.objects.filter(**_currency_filter("currency", filters.currency)), "created_at", filters)
     rows = []
 
     for row in (
@@ -283,7 +800,7 @@ def get_shipping_summary(filters):
 def get_product_leaderboards(filters):
     paid_items = _filter_by_date(
         OrderItem.objects.filter(
-            order__currency=filters.currency,
+            **_currency_filter("order__currency", filters.currency),
             order__payment_status=Order.PaymentStatus.PAID,
             order__paid_at__isnull=False,
         ),
@@ -299,7 +816,7 @@ def get_product_leaderboards(filters):
         "top_by_sales": list(annotated_items.order_by("-total_sales", "-total_quantity")[:5]),
         "low_stock_products": list(
             Product.objects.filter(
-                currency=filters.currency,
+                **_currency_filter("currency", filters.currency),
                 is_active=True,
                 is_purchasable=True,
                 stock_quantity__lte=LOW_STOCK_THRESHOLD,
@@ -392,7 +909,7 @@ def _quiz_submissions(filters):
 def _paid_orders(filters):
     return _filter_by_date(
         Order.objects.filter(
-            currency=filters.currency,
+            **_currency_filter("currency", filters.currency),
             payment_status=Order.PaymentStatus.PAID,
             paid_at__isnull=False,
         ),
@@ -404,7 +921,7 @@ def _paid_orders(filters):
 def _paid_transactions(filters):
     return _filter_by_date(
         Transaction.objects.filter(
-            currency=filters.currency,
+            **_currency_filter("currency", filters.currency),
             status__in=[
                 Transaction.Status.PAID,
                 Transaction.Status.PARTIALLY_REFUNDED,
@@ -429,7 +946,7 @@ def _current_shipments_for_paid_orders(filters):
 
 def _succeeded_refunds(filters):
     return _filter_by_date(
-        Refund.objects.filter(currency=filters.currency, status=Refund.Status.SUCCEEDED),
+        Refund.objects.filter(status=Refund.Status.SUCCEEDED, **_currency_filter("currency", filters.currency)),
         "created_at",
         filters,
     )
@@ -437,7 +954,7 @@ def _succeeded_refunds(filters):
 
 def _ledger_entries(filters):
     return _filter_by_date(
-        LedgerEntry.objects.filter(currency=filters.currency),
+        LedgerEntry.objects.filter(**_currency_filter("currency", filters.currency)),
         "created_at",
         filters,
     )
@@ -458,6 +975,12 @@ def _filter_by_date(queryset, field_name, filters):
             f"{field_name}__date__lte": filters.end_date,
         }
     )
+
+
+def _currency_filter(field_name, currency):
+    if currency == "all":
+        return {}
+    return {field_name: currency.upper()}
 
 
 def _status_rows(queryset, field_name, choices):
@@ -512,6 +1035,16 @@ def _date_range(start_date, end_date):
     while current <= end_date:
         yield current
         current += timedelta(days=1)
+
+
+def _build_svg_path(points):
+    if not points:
+        return ""
+    start_x, start_y = points[0]
+    segments = [f"M {start_x:.1f} {start_y:.1f}"]
+    for x, y in points[1:]:
+        segments.append(f"L {x:.1f} {y:.1f}")
+    return " ".join(segments)
 
 
 def _width(value, maximum):

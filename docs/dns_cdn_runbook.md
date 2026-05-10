@@ -79,12 +79,14 @@ curl -Ik https://127.0.0.1
 ### 正常预期
 - 80 和 443 至少有一个在监听
 - 本机请求能拿到 Nginx / 站点响应
+- `https://www.xuanor.com/healthz/live` 与后台登录页能正常返回
 
 ### 如果是 Docker 部署
+优先使用项目脚本，避免因为 env / profile 不一致看错状态：
+
 ```bash
-docker compose ps
-docker compose logs --tail=100 proxy
-docker compose logs --tail=100 web
+bash deploy/auto-deploy.sh status
+bash deploy/auto-deploy.sh logs
 ```
 
 ---

@@ -1,0 +1,188 @@
+{% extends "admin/_xuanor_shell.html" %}
+
+{% block x_admin_content %}
+<div class="x-admin-custom-page-grid x-admin-payments-grid">
+  <section class="module x-admin-custom-page-hero">
+    <div class="x-admin-custom-page-hero-copy">
+      <div class="x-admin-tactical-tag">Strategic Entry / Payments</div>
+      <div class="x-admin-panel-title-group">
+        <h2 class="x-admin-panel-title">支付态势主控页</h2>
+        <p class="x-admin-panel-copy">当前范围：{{ filters.label }} · {{ filters.currency_label }}。先看支付成功、退款压力、风险告警和账务流，再分流到原生 Admin 执行面。</p>
+      </div>
+      <div class="x-admin-home-hero-actions">
+        <a class="x-admin-button is-primary" href="{% url 'admin:payments_payment_changelist' %}">支付记录</a>
+        <a class="x-admin-button" href="{% url 'admin:transactions_refund_changelist' %}">退款管理</a>
+        <a class="x-admin-button" href="{% url 'trade_cockpit_dashboard' %}">战情驾驶舱</a>
+      </div>
+    </div>
+    <div class="x-admin-custom-page-status-stack">
+      {% for item in payment_console_overview %}
+      <div class="x-admin-home-command-box {{ item.variant }}">
+        <span>{{ item.label }}</span>
+        <strong>{{ item.title }}</strong>
+        <small>{{ item.detail }}</small>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="module dashboard-toolbar x-admin-callout trade-cockpit-command-bar">
+    <div class="trade-cockpit-command-layout">
+      <div class="trade-cockpit-command-brief">
+        <div class="x-admin-panel-title-group">
+          <h2 class="x-admin-panel-title">支付态势筛选</h2>
+          <p class="x-admin-panel-copy">沿用战情驾驶舱的时间和币种视角，只聚焦支付、退款、风控与账务链路。</p>
+        </div>
+        <div class="x-admin-radar-headline">
+          <span>Payment Control</span>
+          <span>{{ filters.label }}</span>
+          <span>{{ filters.currency_label }}</span>
+        </div>
+      </div>
+      <form method="get" class="x-admin-filter-form trade-cockpit-command-form">
+        <div class="field-group">
+          <label for="id_range">时间范围</label>
+          <select name="range" id="id_range">
+            {% for value, label in range_options %}
+            <option value="{{ value }}" {% if filters.range_key == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field-group">
+          <label for="id_currency">币种</label>
+          <select name="currency" id="id_currency">
+            {% for value, label in currency_options %}
+            <option value="{{ value }}" {% if filters.currency == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field-group">
+          <label for="id_start_date">开始日期</label>
+          <input type="date" name="start_date" id="id_start_date" value="{{ filters.start_date|date:'Y-m-d' }}">
+        </div>
+        <div class="field-group">
+          <label for="id_end_date">结束日期</label>
+          <input type="date" name="end_date" id="id_end_date" value="{{ filters.end_date|date:'Y-m-d' }}">
+        </div>
+        <div class="actions">
+          <button type="submit" class="button default">更新支付态势</button>
+          <a href="{% url 'payment_console' %}" class="button">重置筛选</a>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <div class="trade-cockpit-command-metrics x-admin-custom-page-command-grid">
+    {% for metric in payment_console_metrics %}
+    <article class="trade-cockpit-command-cell {{ metric.variant }}">
+      <span>{{ metric.label }}</span>
+      <strong>{{ metric.value }}</strong>
+      <small>{{ metric.detail }}</small>
+    </article>
+    {% endfor %}
+  </div>
+
+  <div class="x-admin-panel-grid trade-cockpit-tactical-grid">
+    <section class="module x-admin-custom-page-section-card">
+      <div class="x-admin-panel-header">
+        <div class="x-admin-panel-title-group">
+          <h2 class="x-admin-panel-title">支付渠道表现</h2>
+          <p class="x-admin-panel-copy">查看各支付渠道的成功量、失败量与当前操作负荷。</p>
+        </div>
+      </div>
+      <div class="x-admin-custom-page-link-grid">
+        {% for provider in payment_provider_cards %}
+        <article class="x-admin-home-route-card">
+          <span>0{{ forloop.counter }}</span>
+          <strong>{{ provider.name }}</strong>
+          <small>总 {{ provider.total_count }} / 成功 {{ provider.paid_count }} / 失败 {{ provider.failed_count }}</small>
+        </article>
+        {% empty %}
+        <article class="x-admin-home-route-card">
+          <span>01</span>
+          <strong>暂无渠道数据</strong>
+          <small>当前筛选范围内没有支付记录。</small>
+        </article>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="module x-admin-custom-page-section-card">
+      <div class="x-admin-panel-header">
+        <div class="x-admin-panel-title-group">
+          <h2 class="x-admin-panel-title">风险与资金摘要</h2>
+          <p class="x-admin-panel-copy">把退款、风控与账务流水压成同一块观察面。</p>
+        </div>
+      </div>
+      <div class="x-admin-custom-page-link-grid">
+        <article class="x-admin-home-route-card">
+          <span>01</span>
+          <strong>风险审核</strong>
+          <small>Review {{ risk_summary.review_count }} / Block {{ risk_summary.block_count }}</small>
+        </article>
+        <article class="x-admin-home-route-card">
+          <span>02</span>
+          <strong>账务流水</strong>
+          <small>{{ funds_flow.ledger_transactions_count }} 笔账务交易</small>
+        </article>
+        <article class="x-admin-home-route-card">
+          <span>03</span>
+          <strong>退款与手续费</strong>
+          <small>退款 {{ funds_flow.refund_amount }} / 手续费 {{ funds_flow.fee_amount }}</small>
+        </article>
+        <article class="x-admin-home-route-card">
+          <span>04</span>
+          <strong>待补操作</strong>
+          <small>{{ payment_summary.requires_action_count }} 笔支付等待补充动作</small>
+        </article>
+      </div>
+    </section>
+
+    <section class="module x-admin-custom-page-section-card">
+      <div class="x-admin-panel-header">
+        <div class="x-admin-panel-title-group">
+          <h2 class="x-admin-panel-title">风险告警</h2>
+          <p class="x-admin-panel-copy">优先观察最近的 review / block 交易，避免异常支付继续进入履约链路。</p>
+        </div>
+      </div>
+      <div class="x-admin-custom-page-link-grid">
+        {% for alert in alerts %}
+        <a class="x-admin-home-route-card" href="{% url 'admin:transactions_riskassessment_changelist' %}">
+          <span>0{{ forloop.counter }}</span>
+          <strong>{{ alert.transaction.order.order_number }}</strong>
+          <small>{{ alert.get_decision_display }} · score {{ alert.score }}</small>
+        </a>
+        {% empty %}
+        <article class="x-admin-home-route-card">
+          <span>01</span>
+          <strong>暂无风险告警</strong>
+          <small>当前筛选范围内没有 review / block 记录。</small>
+        </article>
+        {% endfor %}
+      </div>
+    </section>
+  </div>
+
+  <div class="x-admin-custom-page-sections">
+    {% for section in payment_operations_sections %}
+    <section class="module x-admin-custom-page-section-card">
+      <div class="x-admin-panel-header">
+        <div class="x-admin-panel-title-group">
+          <h2 class="x-admin-panel-title">{{ section.title }}</h2>
+          <p class="x-admin-panel-copy">{{ section.description }}</p>
+        </div>
+      </div>
+      <div class="x-admin-custom-page-link-grid">
+        {% for link in section.links %}
+        <a class="x-admin-home-route-card" href="{{ link.url }}">
+          <span>0{{ forloop.counter }}</span>
+          <strong>{{ link.label }}</strong>
+          <small>{{ section.title }}入口</small>
+        </a>
+        {% endfor %}
+      </div>
+    </section>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

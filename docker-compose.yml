@@ -6,10 +6,10 @@ services:
     env_file:
       - ${ENV_FILE:-.env}
     environment:
-      MYSQL_DATABASE: ${DB_NAME}
-      MYSQL_USER: ${DB_USER}
-      MYSQL_PASSWORD: ${DB_PASSWORD}
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME:?Set DB_NAME via .env or --env-file}
+      MYSQL_USER: ${DB_USER:?Set DB_USER via .env or --env-file}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD via .env or --env-file}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD via .env or --env-file}
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     volumes:
       - mysql_data:/var/lib/mysql
@@ -47,13 +47,19 @@ services:
     volumes:
       - media_data:/app/media
       - static_data:/app/staticfiles
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz/ready', timeout=3).read()"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
     restart: unless-stopped
 
   proxy:
     image: nginx:1.27-alpine
     container_name: xuanor_site_proxy
     depends_on:
-      - web
+      web:
+        condition: service_healthy
     ports:
       - "80:80"
       - "443:443"
@@ -62,6 +68,11 @@ services:
       - ./deploy/certs:/etc/nginx/certs:ro
       - media_data:/var/www/media:ro
       - static_data:/var/www/static:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- --no-check-certificate https://127.0.0.1/healthz/live >/dev/null"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
     restart: unless-stopped
     profiles: ["prod"]
 

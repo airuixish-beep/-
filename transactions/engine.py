@@ -5,24 +5,27 @@ from decimal import Decimal
 
 from payments.models import Payment
 
-from .models import LedgerAccount, LedgerEntry, Refund, Transaction, TransactionEvent
+from .models import LedgerAccount, LedgerEntry, LedgerTransaction, Refund, Transaction, TransactionEvent
 from .risk import RiskService
 
 LEDGER_ACCOUNT_DEFINITIONS = (
-    ("provider_clearing_stripe", "Stripe 在途资金"),
-    ("provider_clearing_paypal", "PayPal 在途资金"),
-    ("customer_receipts", "客户收款"),
-    ("payment_fees", "支付手续费"),
-    ("refunds", "退款"),
-    ("net_revenue", "净收入"),
+    ("provider_clearing_stripe", "Stripe 在途资金", LedgerAccount.AccountType.CLEARING),
+    ("provider_clearing_paypal", "PayPal 在途资金", LedgerAccount.AccountType.CLEARING),
+    ("customer_receipts", "客户收款", LedgerAccount.AccountType.REVENUE),
+    ("payment_fees", "支付手续费", LedgerAccount.AccountType.EXPENSE),
+    ("refunds", "退款", LedgerAccount.AccountType.LIABILITY),
+    ("net_revenue", "净收入", LedgerAccount.AccountType.REVENUE),
 )
 
 
 class TransactionEngine:
     @staticmethod
     def ensure_ledger_accounts():
-        for code, name in LEDGER_ACCOUNT_DEFINITIONS:
-            LedgerAccount.objects.get_or_create(code=code, defaults={"name": name})
+        for code, name, account_type in LEDGER_ACCOUNT_DEFINITIONS:
+            LedgerAccount.objects.get_or_create(
+                code=code,
+                defaults={"name": name, "account_type": account_type},
+            )
 
     @staticmethod
     @transaction.atomic
@@ -256,9 +259,64 @@ class TransactionEngine:
         return True
 
     @staticmethod
+    def _payment_ledger_reference(transaction_obj, payment):
+        return f"ltx-pay-{transaction_obj.id}-{payment.id}"
+
+    @staticmethod
+    def _refund_ledger_reference(transaction_obj, refund):
+        return f"ltx-refund-{transaction_obj.id}-{refund.id}"
+
+    @staticmethod
+    def _get_or_create_payment_ledger_transaction(transaction_obj, payment):
+        return LedgerTransaction.objects.get_or_create(
+            reference_no=TransactionEngine._payment_ledger_reference(transaction_obj, payment),
+            defaults={
+                "kind": LedgerTransaction.Kind.PAYMENT_CAPTURE,
+                "order": transaction_obj.order,
+                "payment": payment,
+                "currency": payment.currency,
+                "gross_amount": payment.amount,
+                "net_amount": payment.amount,
+                "metadata": {
+                    "transaction_id": transaction_obj.id,
+                    "payment_id": payment.id,
+                    "provider": payment.provider,
+                },
+                "occurred_at": payment.paid_at or timezone.now(),
+            },
+        )
+
+    @staticmethod
+    def _get_or_create_refund_ledger_transaction(transaction_obj, refund):
+        return LedgerTransaction.objects.get_or_create(
+            reference_no=TransactionEngine._refund_ledger_reference(transaction_obj, refund),
+            defaults={
+                "kind": LedgerTransaction.Kind.REFUND,
+                "order": transaction_obj.order,
+                "payment": refund.payment,
+                "refund": refund,
+                "currency": refund.currency,
+                "gross_amount": refund.amount,
+                "net_amount": refund.amount * Decimal("-1"),
+                "metadata": {
+                    "transaction_id": transaction_obj.id,
+                    "payment_id": refund.payment_id,
+                    "refund_id": refund.id,
+                },
+                "occurred_at": refund.completed_at or timezone.now(),
+            },
+        )
+
+    @staticmethod
     def post_payment_ledger_entries(transaction_obj, payment):
         TransactionEngine.ensure_ledger_accounts()
-        if LedgerEntry.objects.filter(transaction=transaction_obj, entry_type="payment_capture").exists():
+        ledger_transaction, _created = TransactionEngine._get_or_create_payment_ledger_transaction(transaction_obj, payment)
+        existing_entries = LedgerEntry.objects.filter(transaction=transaction_obj, payment=payment, entry_type="payment_capture")
+        if existing_entries.exists():
+            existing_entries.filter(ledger_transaction__isnull=True).update(
+                ledger_transaction=ledger_transaction,
+                description="payment capture",
+            )
             return
 
         clearing_code = f"provider_clearing_{payment.provider}"
@@ -269,6 +327,7 @@ class TransactionEngine:
             [
                 LedgerEntry(
                     transaction=transaction_obj,
+                    ledger_transaction=ledger_transaction,
                     payment=payment,
                     account=clearing_account,
                     direction=LedgerEntry.Direction.DEBIT,
@@ -276,9 +335,11 @@ class TransactionEngine:
                     currency=payment.currency,
                     entry_type="payment_capture",
                     external_reference=payment.external_payment_id,
+                    description="payment capture",
                 ),
                 LedgerEntry(
                     transaction=transaction_obj,
+                    ledger_transaction=ledger_transaction,
                     payment=payment,
                     account=receipt_account,
                     direction=LedgerEntry.Direction.CREDIT,
@@ -286,6 +347,7 @@ class TransactionEngine:
                     currency=payment.currency,
                     entry_type="payment_capture",
                     external_reference=payment.external_payment_id,
+                    description="payment capture",
                 ),
             ]
         )
@@ -319,6 +381,7 @@ class TransactionEngine:
         tx.status = Transaction.Status.REFUNDED if total_refunded >= tx.amount else Transaction.Status.PARTIALLY_REFUNDED
         tx.metadata = {**(tx.metadata or {}), "last_refund_id": provider_refund_id}
         tx.save(update_fields=["status", "metadata", "updated_at"])
+        tx.order.sync_from_transaction_status(tx.status)
 
         TransactionEngine.post_refund_ledger_entries(tx, refund)
         return refund, True
@@ -326,7 +389,13 @@ class TransactionEngine:
     @staticmethod
     def post_refund_ledger_entries(transaction_obj, refund):
         TransactionEngine.ensure_ledger_accounts()
-        if LedgerEntry.objects.filter(refund=refund, entry_type="refund").exists():
+        ledger_transaction, _created = TransactionEngine._get_or_create_refund_ledger_transaction(transaction_obj, refund)
+        existing_entries = LedgerEntry.objects.filter(refund=refund, entry_type="refund")
+        if existing_entries.exists():
+            existing_entries.filter(ledger_transaction__isnull=True).update(
+                ledger_transaction=ledger_transaction,
+                description="refund payout",
+            )
             return
 
         refund_account = LedgerAccount.objects.get(code="refunds")
@@ -335,6 +404,7 @@ class TransactionEngine:
             [
                 LedgerEntry(
                     transaction=transaction_obj,
+                    ledger_transaction=ledger_transaction,
                     payment=refund.payment,
                     refund=refund,
                     account=refund_account,
@@ -343,9 +413,11 @@ class TransactionEngine:
                     currency=refund.currency,
                     entry_type="refund",
                     external_reference=refund.provider_refund_id,
+                    description="refund payout",
                 ),
                 LedgerEntry(
                     transaction=transaction_obj,
+                    ledger_transaction=ledger_transaction,
                     payment=refund.payment,
                     refund=refund,
                     account=clearing_account,
@@ -354,6 +426,7 @@ class TransactionEngine:
                     currency=refund.currency,
                     entry_type="refund",
                     external_reference=refund.provider_refund_id,
+                    description="refund payout",
                 ),
             ]
         )

@@ -1,0 +1,102 @@
+{% extends "admin/_xuanor_shell.html" %}
+
+{% block x_admin_content %}
+<div class="x-admin-custom-page-grid x-admin-payments-grid">
+  <section class="module x-admin-custom-page-hero">
+    <div class="x-admin-custom-page-hero-copy">
+      <div class="x-admin-tactical-tag">Strategic Entry / Content OS</div>
+      <div class="x-admin-panel-title-group">
+        <h2 class="x-admin-panel-title">内容中枢</h2>
+        <p class="x-admin-panel-copy">先把内容生产、素材资产、页面管理、渠道分发、数据分析和爆款资产沉淀收口到同一块甲板上，再决定去哪个执行后台继续推进。</p>
+      </div>
+      <div class="x-admin-home-hero-actions">
+        <a class="x-admin-button is-primary" href="{% url 'ai_command_center' %}">AI 指挥</a>
+        <a class="x-admin-button" href="{% url 'analytics_dashboard:traffic' %}">流量中枢</a>
+        <a class="x-admin-button" href="{% url 'admin:pages_fiveelementquiz_changelist' %}">五行测试</a>
+      </div>
+    </div>
+    <div class="x-admin-custom-page-status-stack">
+      {% for item in content_os_overview %}
+      <div class="x-admin-home-command-box {{ item.variant }}">
+        <span>{{ item.label }}</span>
+        <strong>{{ item.title }}</strong>
+        <small>{{ item.detail }}</small>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <div class="trade-cockpit-command-metrics x-admin-custom-page-command-grid">
+    {% for metric in content_os_metrics %}
+    <article class="trade-cockpit-command-cell {{ metric.variant }}">
+      <span>{{ metric.label }}</span>
+      <strong>{{ metric.value }}</strong>
+      <small>{{ metric.detail }}</small>
+    </article>
+    {% endfor %}
+  </div>
+
+  <section class="module x-admin-custom-page-section-card">
+    <div class="x-admin-panel-header">
+      <div class="x-admin-panel-title-group">
+        <h2 class="x-admin-panel-title">当前接入观察</h2>
+        <p class="x-admin-panel-copy">这一阶段不新造 CMS / DAM / 投放模型，先把当前仓库里真实存在的内容、素材、归因和分析能力收口。</p>
+      </div>
+    </div>
+    <div class="x-admin-custom-page-link-grid">
+      {% for item in content_os_signals %}
+      <article class="x-admin-home-route-card">
+        <span>0{{ forloop.counter }}</span>
+        <strong>{{ item.title }}</strong>
+        <small>{{ item.detail }}</small>
+      </article>
+      {% endfor %}
+    </div>
+  </section>
+
+  <div class="x-admin-custom-page-sections">
+    {% for section in content_os_sections %}
+    <section class="module x-admin-custom-page-section-card">
+      <div class="x-admin-panel-header">
+        <div class="x-admin-panel-title-group">
+          <h2 class="x-admin-panel-title">{{ section.title }}</h2>
+          <p class="x-admin-panel-copy">{{ section.description }}</p>
+        </div>
+      </div>
+      <div class="x-admin-custom-page-link-grid">
+        <article class="x-admin-home-route-card">
+          <span>00</span>
+          <strong>{{ section.stage }}</strong>
+          <small>{{ section.summary }}</small>
+        </article>
+        {% for link in section.links %}
+        <a class="x-admin-home-route-card" href="{{ link.url }}">
+          <span>0{{ forloop.counter }}</span>
+          <strong>{{ link.label }}</strong>
+          <small>{{ section.title }}入口</small>
+        </a>
+        {% endfor %}
+      </div>
+    </section>
+    {% endfor %}
+  </div>
+
+  <section class="module x-admin-custom-page-section-card">
+    <div class="x-admin-panel-header">
+      <div class="x-admin-panel-title-group">
+        <h2 class="x-admin-panel-title">下一阶段待接入</h2>
+        <p class="x-admin-panel-copy">先验证 Content OS 的导航心智成立，再把素材、页面、分发和复用升级成真正对象系统。</p>
+      </div>
+    </div>
+    <div class="x-admin-custom-page-link-grid">
+      {% for item in content_os_roadmap %}
+      <article class="x-admin-home-command-box {{ item.variant }}">
+        <span>待接入</span>
+        <strong>{{ item.title }}</strong>
+        <small>{{ item.description }}</small>
+      </article>
+      {% endfor %}
+    </div>
+  </section>
+</div>
+{% endblock %}

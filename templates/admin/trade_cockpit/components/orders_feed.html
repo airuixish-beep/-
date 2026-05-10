@@ -1,0 +1,52 @@
+<section class="module x-admin-order-stream">
+  <div class="x-admin-tactical-tag">Tactical Stream / Orders</div>
+  <div class="x-admin-panel-header">
+    <div class="x-admin-panel-title-group">
+      <h2 class="x-admin-panel-title">实时订单流</h2>
+      <p class="x-admin-panel-copy">按事件带连续查看下单、支付确认与履约状态变化。</p>
+    </div>
+  </div>
+  <div class="x-admin-stream-summary">
+    <div>
+      <span>Active Feed</span>
+      <strong>{{ recent_orders|length }}</strong>
+    </div>
+    <div>
+      <span>Mode</span>
+      <strong>Live Track</strong>
+    </div>
+  </div>
+  <div class="x-admin-stream-graph" aria-hidden="true">
+    <span class="x-admin-stream-graph-bar is-1"></span>
+    <span class="x-admin-stream-graph-bar is-2"></span>
+    <span class="x-admin-stream-graph-bar is-3"></span>
+    <span class="x-admin-stream-graph-bar is-4"></span>
+    <span class="x-admin-stream-graph-line"></span>
+  </div>
+  <div class="x-admin-stream-rail">
+    {% for order in recent_orders %}
+      <article class="summary-card x-admin-stream-item">
+        <div class="x-admin-stream-head">
+          <span class="x-admin-stream-index">#{{ forloop.counter }}</span>
+          <span class="x-admin-stream-state">{{ order.status }}</span>
+        </div>
+        <div class="status-meta">
+          <strong>{{ order.order_number }}</strong>
+          <span>{{ order.currency }} {{ order.total_amount }}</span>
+        </div>
+        <div class="x-admin-stream-badges">
+          <span class="x-admin-stream-badge">支付 {{ order.payment_status }}</span>
+          <span class="x-admin-stream-badge">履约 {{ order.fulfillment_status }}</span>
+        </div>
+        <div class="x-admin-field-note">{{ order.customer_name }}</div>
+        {% if order.paid_at %}
+          <div class="x-admin-field-note">已支付 · {{ order.paid_at|date:"Y-m-d H:i" }}</div>
+        {% else %}
+          <div class="x-admin-field-note">等待支付确认</div>
+        {% endif %}
+      </article>
+    {% empty %}
+      <div class="x-admin-empty">暂无最近订单。</div>
+    {% endfor %}
+  </div>
+</section>

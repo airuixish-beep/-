@@ -1,0 +1,116 @@
+{% extends "admin/_xuanor_shell.html" %}
+
+{% block x_admin_content %}
+<div class="x-admin-grid trade-cockpit-dashboard">
+  <section class="module dashboard-toolbar x-admin-callout trade-cockpit-command-bar">
+    <div class="trade-cockpit-command-layout">
+      <div class="trade-cockpit-command-brief">
+        <div class="x-admin-panel-title-group">
+          <h2 class="x-admin-panel-title">顶部战略指挥</h2>
+          <p class="x-admin-panel-copy">当前范围：{{ filters.label }} · {{ filters.currency_label }}。统一调度订单、支付、账务、风控与异常处理流。</p>
+        </div>
+        <div class="x-admin-radar-headline">
+          <span>Mission Control</span>
+          <span>Trade Command</span>
+          <span>{{ filters.label }}</span>
+        </div>
+      </div>
+
+      <div class="trade-cockpit-command-metrics">
+        <article class="trade-cockpit-command-cell is-gmv">
+          <span>GMV</span>
+          <strong>{{ trade_radar.gmv }}</strong>
+          <small>已支付订单总额</small>
+        </article>
+        <article class="trade-cockpit-command-cell is-paid-rate">
+          <span>支付成功率</span>
+          <strong>{{ trade_radar.paid_rate }}%</strong>
+          <small>当前支付链路健康度</small>
+        </article>
+        <article class="trade-cockpit-command-cell is-alerts">
+          <span>风险预警</span>
+          <strong>{{ alerts|length }}</strong>
+          <small>Review {{ risk_summary.review_count }} · Block {{ risk_summary.block_count }}</small>
+        </article>
+        <article class="trade-cockpit-command-cell is-net">
+          <span>净资金</span>
+          <strong>{{ trade_radar.net_amount }}</strong>
+          <small>GMV - 退款 - 手续费</small>
+        </article>
+      </div>
+
+      <div class="trade-cockpit-command-side">
+        <article class="trade-cockpit-command-cell is-actions">
+          <span>指挥动作</span>
+          <div class="trade-cockpit-command-actions">
+            <a href="{% url 'admin:orders_order_changelist' %}" class="x-admin-button">订单流</a>
+            <a href="{% url 'admin:payments_payment_changelist' %}" class="x-admin-button">支付链路</a>
+            <a href="{% url 'admin:transactions_riskassessment_changelist' %}" class="x-admin-button is-primary">预警处理</a>
+          </div>
+        </article>
+        <form method="get" class="x-admin-filter-form trade-cockpit-command-form">
+          <div class="field-group">
+            <label for="id_range">时间范围</label>
+            <select name="range" id="id_range">
+              {% for value, label in range_options %}
+              <option value="{{ value }}" {% if filters.range_key == value %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="field-group">
+            <label for="id_currency">币种</label>
+            <select name="currency" id="id_currency">
+              {% for value, label in currency_options %}
+              <option value="{{ value }}" {% if filters.currency == value %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="field-group">
+            <label for="id_start_date">开始日期</label>
+            <input type="date" name="start_date" id="id_start_date" value="{{ filters.start_date|date:'Y-m-d' }}">
+          </div>
+          <div class="field-group">
+            <label for="id_end_date">结束日期</label>
+            <input type="date" name="end_date" id="id_end_date" value="{{ filters.end_date|date:'Y-m-d' }}">
+          </div>
+          <div class="actions">
+            <button type="submit" class="button default">更新看板</button>
+            <a href="{% url 'trade_cockpit_dashboard' %}" class="button">重置筛选</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <div class="trade-cockpit-battle-grid">
+    <div class="trade-cockpit-center-column">
+      <section class="trade-cockpit-section-label">
+        <span>中间作战雷达主屏</span>
+      </section>
+      {% include "admin/trade_cockpit/components/trade_radar.html" %}
+    </div>
+
+    <aside class="trade-cockpit-side-column">
+      <section class="trade-cockpit-section-label">
+        <span>右侧AI参谋席</span>
+      </section>
+      {% include "admin/trade_cockpit/components/copilot_panel.html" %}
+    </aside>
+  </div>
+
+  <section class="trade-cockpit-section-label is-bottom">
+    <span>下方战术模块</span>
+  </section>
+  <div class="x-admin-panel-grid trade-cockpit-tactical-grid">
+    <div class="trade-cockpit-tactical-primary">
+      {% include "admin/trade_cockpit/components/orders_feed.html" %}
+    </div>
+    <div class="trade-cockpit-tactical-secondary">
+      {% include "admin/trade_cockpit/components/funds_flow.html" %}
+    </div>
+    <div class="trade-cockpit-tactical-alert">
+      {% include "admin/trade_cockpit/components/alert_center.html" %}
+    </div>
+  </div>
+</div>
+{% endblock %}

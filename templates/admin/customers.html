@@ -1,0 +1,82 @@
+{% extends "admin/_xuanor_shell.html" %}
+
+{% block x_admin_content %}
+<div class="x-admin-custom-page-grid x-admin-customers-grid">
+  <section class="module x-admin-custom-page-hero">
+    <div class="x-admin-custom-page-hero-copy">
+      <div class="x-admin-tactical-tag">Strategic Entry / Customers</div>
+      <div class="x-admin-panel-title-group">
+        <h2 class="x-admin-panel-title">客户工作台入口</h2>
+        <p class="x-admin-panel-copy">当前项目没有单独的 Customer app，所以先把订单客户、客服会话和测试留资以运营视角聚合，方便前台转化与售后协同。</p>
+      </div>
+      <div class="x-admin-home-hero-actions">
+        <a class="x-admin-button is-primary" href="{% url 'support_chat_console' %}">在线客服控制台</a>
+        <a class="x-admin-button" href="{% url 'analytics_dashboard:quiz' %}">五行测试提交</a>
+        <a class="x-admin-button" href="{% url 'trade_cockpit_dashboard' %}">战情驾驶舱</a>
+      </div>
+    </div>
+    <div class="x-admin-custom-page-status-stack">
+      <div class="x-admin-home-command-box is-cyan">
+        <span>Customer Lens</span>
+        <strong>Orders</strong>
+        <small>购买、付款、履约关系视角</small>
+      </div>
+      <div class="x-admin-home-command-box is-violet">
+        <span>Conversation</span>
+        <strong>Support</strong>
+        <small>访客咨询、留言与售后沟通</small>
+      </div>
+      <div class="x-admin-home-command-box is-danger">
+        <span>Lead Signal</span>
+        <strong>Quiz Leads</strong>
+        <small>线索沉淀与来源判断</small>
+      </div>
+    </div>
+  </section>
+
+  <div class="trade-cockpit-command-metrics x-admin-custom-page-command-grid">
+    <article class="trade-cockpit-command-cell is-gmv">
+      <span>Workspace</span>
+      <strong>Customer Desk</strong>
+      <small>订单客户、会话、留资聚合</small>
+    </article>
+    <article class="trade-cockpit-command-cell is-paid-rate">
+      <span>Primary Channel</span>
+      <strong>Support Chat</strong>
+      <small>优先处理在线会话与售后问题</small>
+    </article>
+    <article class="trade-cockpit-command-cell is-alerts">
+      <span>Lead Source</span>
+      <strong>Quiz Funnel</strong>
+      <small>测试结果与邮箱留资联动</small>
+    </article>
+    <article class="trade-cockpit-command-cell is-net">
+      <span>Operator View</span>
+      <strong>Unified</strong>
+      <small>把客户线索压缩到同一张入口图</small>
+    </article>
+  </div>
+
+  <div class="x-admin-custom-page-sections">
+    {% for section in customer_sections %}
+    <section class="module x-admin-custom-page-section-card">
+      <div class="x-admin-panel-header">
+        <div class="x-admin-panel-title-group">
+          <h2 class="x-admin-panel-title">{{ section.title }}</h2>
+          <p class="x-admin-panel-copy">{{ section.description }}</p>
+        </div>
+      </div>
+      <div class="x-admin-custom-page-link-grid">
+        {% for link in section.links %}
+        <a class="x-admin-home-route-card" href="{{ link.url }}">
+          <span>0{{ forloop.counter }}</span>
+          <strong>{{ link.label }}</strong>
+          <small>{{ section.title }}操作入口</small>
+        </a>
+        {% endfor %}
+      </div>
+    </section>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

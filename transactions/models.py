@@ -106,8 +106,17 @@ class Refund(models.Model):
 
 
 class LedgerAccount(models.Model):
+    class AccountType(models.TextChoices):
+        ASSET = "asset", "资产"
+        LIABILITY = "liability", "负债"
+        REVENUE = "revenue", "收入"
+        EXPENSE = "expense", "费用"
+        CLEARING = "clearing", "清算"
+
     code = models.CharField("账户编码", max_length=50, unique=True)
     name = models.CharField("账户名称", max_length=100)
+    account_type = models.CharField("账户类型", max_length=20, choices=AccountType.choices, default=AccountType.CLEARING)
+    currency = models.CharField("币种", max_length=8, default="USD")
     is_active = models.BooleanField("启用", default=True)
     created_at = models.DateTimeField("创建时间", auto_now_add=True)
     updated_at = models.DateTimeField("更新时间", auto_now=True)
@@ -121,12 +130,43 @@ class LedgerAccount(models.Model):
         return f"{self.code} - {self.name}"
 
 
+class LedgerTransaction(models.Model):
+    class Kind(models.TextChoices):
+        PAYMENT_CAPTURE = "payment_capture", "支付入账"
+        REFUND = "refund", "退款"
+        FEE = "fee", "手续费"
+        ADJUSTMENT = "adjustment", "调账"
+        SETTLEMENT = "settlement", "结算"
+        CHARGEBACK = "chargeback", "拒付"
+
+    reference_no = models.CharField("账务流水号", max_length=64, unique=True)
+    kind = models.CharField("账务类型", max_length=40, choices=Kind.choices)
+    order = models.ForeignKey("orders.Order", verbose_name="所属订单", on_delete=models.SET_NULL, related_name="ledger_transactions", null=True, blank=True)
+    payment = models.ForeignKey("payments.Payment", verbose_name="支付尝试", on_delete=models.SET_NULL, related_name="ledger_transactions", null=True, blank=True)
+    refund = models.ForeignKey(Refund, verbose_name="退款", on_delete=models.SET_NULL, related_name="ledger_transactions", null=True, blank=True)
+    currency = models.CharField("币种", max_length=8)
+    gross_amount = models.DecimalField("毛额", max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    net_amount = models.DecimalField("净额", max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    metadata = models.JSONField("扩展信息", default=dict, blank=True)
+    occurred_at = models.DateTimeField("发生时间")
+    created_at = models.DateTimeField("创建时间", auto_now_add=True)
+
+    class Meta:
+        ordering = ["-occurred_at", "-id"]
+        verbose_name = "账务流水"
+        verbose_name_plural = "账务流水"
+
+    def __str__(self):
+        return self.reference_no
+
+
 class LedgerEntry(models.Model):
     class Direction(models.TextChoices):
         DEBIT = "debit", "借"
         CREDIT = "credit", "贷"
 
     transaction = models.ForeignKey(Transaction, verbose_name="所属交易", on_delete=models.CASCADE, related_name="ledger_entries")
+    ledger_transaction = models.ForeignKey(LedgerTransaction, verbose_name="账务流水", on_delete=models.SET_NULL, related_name="entries", null=True, blank=True)
     payment = models.ForeignKey("payments.Payment", verbose_name="支付尝试", on_delete=models.SET_NULL, related_name="ledger_entries", null=True, blank=True)
     refund = models.ForeignKey(Refund, verbose_name="退款", on_delete=models.SET_NULL, related_name="ledger_entries", null=True, blank=True)
     account = models.ForeignKey(LedgerAccount, verbose_name="账户", on_delete=models.PROTECT, related_name="entries")
@@ -135,12 +175,52 @@ class LedgerEntry(models.Model):
     currency = models.CharField("币种", max_length=3)
     entry_type = models.CharField("分录类型", max_length=40)
     external_reference = models.CharField("外部引用", max_length=120, blank=True)
+    description = models.CharField("说明", max_length=255, blank=True)
     created_at = models.DateTimeField("创建时间", auto_now_add=True)
 
     class Meta:
         ordering = ["created_at", "id"]
         verbose_name = "账务分录"
         verbose_name_plural = "账务分录"
+
+
+class AccountBalanceSnapshot(models.Model):
+    account = models.ForeignKey(LedgerAccount, verbose_name="账户", on_delete=models.CASCADE, related_name="snapshots")
+    currency = models.CharField("币种", max_length=8)
+    balance = models.DecimalField("余额", max_digits=14, decimal_places=2)
+    available_balance = models.DecimalField("可用余额", max_digits=14, decimal_places=2, default=Decimal("0.00"))
+    pending_balance = models.DecimalField("待结算余额", max_digits=14, decimal_places=2, default=Decimal("0.00"))
+    snapshot_at = models.DateTimeField("快照时间")
+    created_at = models.DateTimeField("创建时间", auto_now_add=True)
+
+    class Meta:
+        ordering = ["-snapshot_at", "-id"]
+        verbose_name = "账户余额快照"
+        verbose_name_plural = "账户余额快照"
+
+
+class SettlementRecord(models.Model):
+    class Status(models.TextChoices):
+        PENDING = "pending", "待结算"
+        PROCESSING = "processing", "结算中"
+        SETTLED = "settled", "已结算"
+        FAILED = "failed", "结算失败"
+
+    provider = models.CharField("支付渠道", max_length=30)
+    settlement_no = models.CharField("结算单号", max_length=64, unique=True)
+    currency = models.CharField("币种", max_length=8)
+    gross_amount = models.DecimalField("毛额", max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    fee_amount = models.DecimalField("手续费", max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    net_amount = models.DecimalField("净额", max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    status = models.CharField("状态", max_length=20, choices=Status.choices, default=Status.PENDING)
+    settled_at = models.DateTimeField("结算完成时间", null=True, blank=True)
+    payload = models.JSONField("原始数据", default=dict, blank=True)
+    created_at = models.DateTimeField("创建时间", auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "结算记录"
+        verbose_name_plural = "结算记录"
 
 
 class ReconciliationRun(models.Model):

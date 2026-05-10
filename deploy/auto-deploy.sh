@@ -13,6 +13,7 @@ ENV_FILE="${ENV_FILE:-}"
 check_docker() {
   command -v docker >/dev/null 2>&1 || { echo "Docker 未安装，请先安装 Docker Desktop 或 Docker Engine"; exit 1; }
   docker compose version >/dev/null 2>&1 || { echo "Docker Compose 不可用，请确认 docker compose 可执行"; exit 1; }
+  command -v curl >/dev/null 2>&1 || { echo "curl 未安装，请先安装 curl"; exit 1; }
 }
 
 ensure_env_file_path() {
@@ -125,6 +126,67 @@ validate_env() {
   fi
 }
 
+validate_compose_config() {
+  compose_cmd config >/dev/null
+}
+
+wait_for_service_health() {
+  local service="$1"
+  local timeout="${2:-120}"
+  local elapsed=0
+  local container_id=""
+  local status=""
+
+  while [ "$elapsed" -lt "$timeout" ]; do
+    container_id=$(compose_cmd ps -q "$service" 2>/dev/null || true)
+    if [ -n "$container_id" ]; then
+      status=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$container_id" 2>/dev/null || true)
+      case "$status" in
+        healthy|running)
+          return 0
+          ;;
+        unhealthy|exited|dead)
+          echo "服务 $service 状态异常: $status"
+          compose_cmd logs --tail=80 "$service" || true
+          exit 1
+          ;;
+      esac
+    fi
+    sleep 2
+    elapsed=$((elapsed + 2))
+  done
+
+  echo "等待服务 $service 就绪超时"
+  compose_cmd ps || true
+  compose_cmd logs --tail=80 "$service" || true
+  exit 1
+}
+
+wait_for_url() {
+  local url="$1"
+  local timeout="${2:-120}"
+  local elapsed=0
+
+  while [ "$elapsed" -lt "$timeout" ]; do
+    if curl -fsS -o /dev/null -L "$url"; then
+      return 0
+    fi
+    sleep 2
+    elapsed=$((elapsed + 2))
+  done
+
+  echo "等待 URL 就绪超时: $url"
+  exit 1
+}
+
+verify_site_endpoints() {
+  local base_url="${SITE_URL%/}"
+
+  wait_for_url "$base_url/"
+  wait_for_url "$base_url/admin/"
+  wait_for_url "$base_url/static/admin/css/base.css"
+}
+
 print_local_hints() {
   echo "本地 Docker 部署完成。"
   echo "首页:  ${SITE_URL}/"
@@ -139,6 +201,10 @@ run_release_steps() {
   fi
 
   compose_cmd up --build -d "${release_services[@]}"
+  wait_for_service_health db
+  if is_true "${CHAT_REALTIME_ENABLED:-false}"; then
+    wait_for_service_health redis
+  fi
   ensure_local_test_database
   compose_cmd run --rm web python manage.py migrate --noinput
   compose_cmd run --rm web python manage.py collectstatic --noinput
@@ -173,6 +239,7 @@ start_core_services() {
     services+=(redis)
   fi
   compose_cmd up --build -d "${services[@]}"
+  wait_for_service_health web
 }
 
 case "$MODE" in
@@ -184,12 +251,15 @@ case "$MODE" in
     configure_profiles
     ensure_prod_requirements
     validate_env
+    validate_compose_config
     run_release_steps
     run_health_checks
     start_core_services
     if [ "${DEPLOY_ENV:-prod}" = "prod" ]; then
       compose_cmd up -d "$PROXY_SERVICE"
+      wait_for_service_health "$PROXY_SERVICE"
     fi
+    verify_site_endpoints
     compose_cmd ps
     if [ "${DEPLOY_ENV:-prod}" = "local" ]; then
       print_local_hints
@@ -208,9 +278,11 @@ case "$MODE" in
     load_env
     configure_profiles
     validate_env
+    validate_compose_config
     run_release_steps
     run_health_checks
     start_core_services
+    verify_site_endpoints
     compose_cmd ps
     print_local_hints
     ;;
@@ -223,10 +295,12 @@ case "$MODE" in
     load_env
     configure_profiles
     validate_env
+    validate_compose_config
     run_release_steps
     run_health_checks
     run_local_bootstrap
     start_core_services
+    verify_site_endpoints
     compose_cmd ps
     print_local_hints
     echo "本地管理员: admin / admin123456"
@@ -247,6 +321,7 @@ case "$MODE" in
     configure_profiles
     ensure_prod_requirements
     validate_env
+    validate_compose_config
     run_health_checks
     ;;
   exec)

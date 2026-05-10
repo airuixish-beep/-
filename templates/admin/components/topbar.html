@@ -1,0 +1,48 @@
+<header class="x-admin-topbar">
+  <div class="x-admin-topbar-left">
+    <div class="x-admin-topbar-brandline">
+      {% if x_admin_kicker %}<div class="x-admin-kicker">{{ x_admin_kicker }}</div>{% endif %}
+      <div class="x-admin-topbar-timecode">
+        <strong>{% now "H:i:s" %}</strong>
+        <span>{% now "Y-m-d" %}</span>
+      </div>
+    </div>
+    <div class="x-admin-topbar-copy">
+      <h1 class="x-admin-page-title">{{ title }}</h1>
+      {% if subtitle %}<p class="x-admin-page-subtitle">{{ subtitle }}</p>{% endif %}
+    </div>
+  </div>
+
+  <div class="x-admin-topbar-center">
+    <div class="x-admin-topbar-command-title">Strategic Command Center</div>
+    <div class="x-admin-topbar-command-subtitle">全球交易战情指挥系统</div>
+  </div>
+
+  <div class="x-admin-topbar-right">
+    <div class="x-admin-topbar-status-grid">
+      <div class="x-admin-status-block is-operational">
+        <span>System Status</span>
+        <strong>Operational</strong>
+      </div>
+      <div class="x-admin-status-block is-warning">
+        <span>Threat Level</span>
+        <strong>Elevated</strong>
+      </div>
+      {% if user.is_authenticated %}
+      <div class="x-admin-status-block is-user">
+        <span>Commander</span>
+        <strong>{{ user.get_username }}</strong>
+      </div>
+      {% endif %}
+    </div>
+    {% if x_admin_topbar_actions %}
+    <div class="x-admin-topbar-actions">
+      {% for action in x_admin_topbar_actions %}
+        {% if action.url %}
+        <a href="{{ action.url }}" class="x-admin-button{% if action.primary %} is-primary{% endif %}">{{ action.label }}</a>
+        {% endif %}
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+</header>

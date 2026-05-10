@@ -1,0 +1,304 @@
+{% extends "admin/_xuanor_shell.html" %}
+
+{% block x_admin_content %}
+<div class="x-admin-custom-page-grid x-admin-orders-grid">
+  <section class="module x-admin-custom-page-hero">
+    <div class="x-admin-custom-page-hero-copy">
+      <div class="x-admin-tactical-tag">Strategic Entry / Orders</div>
+      <div class="x-admin-panel-title-group">
+        <h2 class="x-admin-panel-title">订单态势主控页</h2>
+        <p class="x-admin-panel-copy">当前范围：{{ filters.label }} · {{ filters.currency_label }}。先看订单转化、履约负载、退款售后和客户协同，再分流到原生 Admin 执行面。</p>
+      </div>
+      <div class="x-admin-home-hero-actions">
+        <a class="x-admin-button is-primary" href="{% url 'admin:orders_order_changelist' %}">订单列表</a>
+        <a class="x-admin-button" href="{% url 'admin:shipping_shipment_changelist' %}">发货管理</a>
+        <a class="x-admin-button" href="{% url 'support_chat_console' %}">客服控制台</a>
+      </div>
+    </div>
+    <div class="x-admin-custom-page-status-stack">
+      {% for item in order_console_overview %}
+      <div class="x-admin-home-command-box {{ item.variant }}">
+        <span>{{ item.label }}</span>
+        <strong>{{ item.title }}</strong>
+        <small>{{ item.detail }}</small>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="module dashboard-toolbar x-admin-callout trade-cockpit-command-bar">
+    <div class="trade-cockpit-command-layout">
+      <div class="trade-cockpit-command-brief">
+        <div class="x-admin-panel-title-group">
+          <h2 class="x-admin-panel-title">订单态势筛选</h2>
+          <p class="x-admin-panel-copy">沿用战情驾驶舱的时间和币种视角，优先聚焦订单、履约、退款与客户链路。</p>
+        </div>
+        <div class="x-admin-radar-headline">
+          <span>Order Control</span>
+          <span>{{ filters.label }}</span>
+          <span>{{ filters.currency_label }}</span>
+        </div>
+      </div>
+      <form method="get" class="x-admin-filter-form trade-cockpit-command-form">
+        <div class="field-group">
+          <label for="id_range">时间范围</label>
+          <select name="range" id="id_range">
+            {% for value, label in range_options %}
+            <option value="{{ value }}" {% if filters.range_key == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field-group">
+          <label for="id_currency">币种</label>
+          <select name="currency" id="id_currency">
+            {% for value, label in currency_options %}
+            <option value="{{ value }}" {% if filters.currency == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field-group">
+          <label for="id_start_date">开始日期</label>
+          <input type="date" name="start_date" id="id_start_date" value="{{ filters.start_date|date:'Y-m-d' }}">
+        </div>
+        <div class="field-group">
+          <label for="id_end_date">结束日期</label>
+          <input type="date" name="end_date" id="id_end_date" value="{{ filters.end_date|date:'Y-m-d' }}">
+        </div>
+        <div class="actions">
+          <button type="submit" class="button default">更新订单态势</button>
+          <a href="{% url 'order_console' %}" class="button">重置筛选</a>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <div class="trade-cockpit-command-metrics x-admin-custom-page-command-grid">
+    {% for metric in order_console_metrics %}
+    <article class="trade-cockpit-command-cell {{ metric.variant }}">
+      <span>{{ metric.label }}</span>
+      <strong>{{ metric.value }}</strong>
+      <small>{{ metric.detail }}</small>
+    </article>
+    {% endfor %}
+  </div>
+
+  <div class="x-admin-analytics-theater">
+    <section class="module x-admin-analytics-primary">
+      <div class="x-admin-panel-header">
+        <div class="x-admin-panel-title-group">
+          <h2 class="x-admin-panel-title">订单趋势主屏</h2>
+          <p class="x-admin-panel-copy">把订单创建、支付完成、履约推进与售后压力压成同一张主观察面。</p>
+        </div>
+      </div>
+      <div class="x-admin-radar-world-metrics x-admin-analytics-world-metrics">
+        <article>
+          <strong>{{ order_kpis.payment_conversion_rate|floatformat:1 }}%</strong>
+          <span>支付转化率</span>
+        </article>
+        <article>
+          <strong>{{ order_kpis.shipping_in_progress_count }}</strong>
+          <span>发货中订单</span>
+        </article>
+        <article>
+          <strong>{{ order_kpis.delivered_order_count }}</strong>
+          <span>已送达订单</span>
+        </article>
+        <article>
+          <strong>{{ order_kpis.refund_total }}</strong>
+          <span>已完成退款</span>
+        </article>
+      </div>
+      <div class="x-admin-trend-chart-card x-admin-analytics-trend-card">
+        <div class="x-admin-panel-title-group">
+          <h3>订单创建与支付完成趋势</h3>
+          <p class="x-admin-panel-copy">订单数按订单创建时间统计，支付金额按订单支付完成时间统计。</p>
+        </div>
+        <table class="chart-table">
+          <thead>
+            <tr>
+              <th>日期</th>
+              <th>订单趋势</th>
+              <th>订单数</th>
+              <th>支付金额趋势</th>
+              <th>已支付金额</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in order_trends.rows %}
+            <tr>
+              <td>{{ row.date_label }}</td>
+              <td><div class="bar-track"><div class="bar-fill" style="width: {{ row.order_width }}%"></div></div></td>
+              <td>{{ row.order_count }}</td>
+              <td><div class="bar-track"><div class="bar-fill secondary" style="width: {{ row.paid_width }}%"></div></div></td>
+              <td>{{ filters.currency|upper }} {{ row.paid_amount|floatformat:2 }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" class="muted">当前筛选范围暂无可展示的订单趋势。</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <aside class="module x-admin-analytics-side-rail">
+      <div class="x-admin-panel-header">
+        <div class="x-admin-panel-title-group">
+          <h2 class="x-admin-panel-title">状态矩阵</h2>
+          <p class="x-admin-panel-copy">拆分订单、支付与履约状态，辅助快速判断当前瓶颈。</p>
+        </div>
+      </div>
+      {% for section in order_status_sections %}
+      <div class="subsection">
+        <h3>{{ section.title }}</h3>
+        <ul class="status-list">
+          {% for row in section.rows %}
+          <li>
+            <div class="status-meta"><span>{{ row.label }}</span><span>{{ row.count }} {{ section.suffix }} / {{ row.ratio|floatformat:1 }}%</span></div>
+            <div class="bar-track"><div class="bar-fill{% if section.secondary %} secondary{% endif %}" style="width: {{ row.width }}%"></div></div>
+          </li>
+          {% empty %}
+          <li class="muted">当前筛选范围暂无状态分布数据。</li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endfor %}
+    </aside>
+  </div>
+
+  <div class="x-admin-panel-grid trade-cockpit-tactical-grid">
+    <section class="module x-admin-custom-page-section-card">
+      <div class="x-admin-panel-header">
+        <div class="x-admin-panel-title-group">
+          <h2 class="x-admin-panel-title">履约与地区摘要</h2>
+          <p class="x-admin-panel-copy">优先观察发货异常、待推进订单和主要目的地热区。</p>
+        </div>
+      </div>
+      <div class="x-admin-custom-page-link-grid">
+        {% for card in order_shipping_cards %}
+        <article class="x-admin-home-route-card">
+          <span>0{{ forloop.counter }}</span>
+          <strong>{{ card.label }}</strong>
+          <small>{{ card.value }} · {{ card.detail }}</small>
+        </article>
+        {% endfor %}
+      </div>
+      <div class="subsection">
+        <h3>发货状态拆分</h3>
+        <table class="simple-table">
+          <thead><tr><th>状态</th><th>数量</th><th>占比</th></tr></thead>
+          <tbody>
+            {% for row in order_shipping_summary.rows %}
+            <tr><td>{{ row.label }}</td><td>{{ row.count }}</td><td>{{ row.ratio|floatformat:1 }}%</td></tr>
+            {% empty %}
+            <tr><td colspan="3" class="muted">当前筛选范围暂无发货状态数据。</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="module x-admin-custom-page-section-card">
+      <div class="x-admin-panel-header">
+        <div class="x-admin-panel-title-group">
+          <h2 class="x-admin-panel-title">最近订单流</h2>
+          <p class="x-admin-panel-copy">优先查看尚未完全闭环的订单，快速判断支付与履约是否需要人工推进。</p>
+        </div>
+      </div>
+      <div class="x-admin-custom-page-link-grid">
+        {% for order in recent_orders %}
+        <a class="x-admin-home-route-card" href="{% url 'admin:orders_order_change' order.id %}">
+          <span>0{{ forloop.counter }}</span>
+          <strong>{{ order.order_number }}</strong>
+          <small>{{ order.get_status_display }} · 支付 {{ order.get_payment_status_display }} · 履约 {{ order.get_fulfillment_status_display }}</small>
+        </a>
+        {% empty %}
+        <article class="x-admin-home-route-card">
+          <span>01</span>
+          <strong>暂无最近订单</strong>
+          <small>当前筛选范围没有可展示的订单记录。</small>
+        </article>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="module x-admin-custom-page-section-card">
+      <div class="x-admin-panel-header">
+        <div class="x-admin-panel-title-group">
+          <h2 class="x-admin-panel-title">异常与售后协同</h2>
+          <p class="x-admin-panel-copy">把物流异常、售后类型和客户沟通压力压缩成同一组协同信号。</p>
+        </div>
+      </div>
+      <div class="subsection">
+        <h3>异常件</h3>
+        <ul class="compact-list">
+          {% for shipment in exception_shipments %}
+          <li>{{ shipment.order.order_number }} / {{ shipment.get_status_display }} / {{ shipment.updated_at|date:"Y-m-d H:i" }}</li>
+          {% empty %}
+          <li class="muted">当前筛选范围没有异常件。</li>
+          {% endfor %}
+        </ul>
+      </div>
+      <div class="subsection">
+        <h3>售后类型负载</h3>
+        <ul class="compact-list">
+          {% for row in order_after_sales_breakdown %}
+          <li>{{ row.label }} / {{ row.count }} 单</li>
+          {% empty %}
+          <li class="muted">当前没有待处理售后单。</li>
+          {% endfor %}
+        </ul>
+      </div>
+      <div class="subsection">
+        <h3>热点地区</h3>
+        <ul class="compact-list">
+          {% for row in geo_country_rows %}
+          <li>{{ row.shipping_country }} / {{ row.order_count }} 单 / {{ row.sales_total }}</li>
+          {% empty %}
+          <li class="muted">当前筛选范围暂无国家分布数据。</li>
+          {% endfor %}
+        </ul>
+      </div>
+    </section>
+  </div>
+
+  <div class="x-admin-custom-page-sections">
+    {% for section in order_operations_sections %}
+    <section class="module x-admin-custom-page-section-card">
+      <div class="x-admin-panel-header">
+        <div class="x-admin-panel-title-group">
+          <h2 class="x-admin-panel-title">{{ section.title }}</h2>
+          <p class="x-admin-panel-copy">{{ section.description }}</p>
+        </div>
+      </div>
+      <div class="x-admin-custom-page-link-grid">
+        {% for link in section.links %}
+        <a class="x-admin-home-route-card" href="{{ link.url }}">
+          <span>0{{ forloop.counter }}</span>
+          <strong>{{ link.label }}</strong>
+          <small>{{ section.title }}入口</small>
+        </a>
+        {% endfor %}
+      </div>
+    </section>
+    {% endfor %}
+  </div>
+
+  <section class="module x-admin-custom-page-section-card">
+    <div class="x-admin-panel-header">
+      <div class="x-admin-panel-title-group">
+        <h2 class="x-admin-panel-title">执行建议</h2>
+        <p class="x-admin-panel-copy">订单控制台负责判断去哪做，具体批量动作仍放在原生 Order Admin 与协同后台执行。</p>
+      </div>
+    </div>
+    <div class="x-admin-custom-page-link-grid">
+      {% for item in order_console_actions %}
+      <article class="x-admin-home-route-card">
+        <span>0{{ forloop.counter }}</span>
+        <strong>{{ item.title }}</strong>
+        <small>{{ item.detail }}</small>
+      </article>
+      {% endfor %}
+    </div>
+  </section>
+</div>
+{% endblock %}

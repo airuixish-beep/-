@@ -4,26 +4,26 @@
 
 {% block content %}
 <section class="border-b border-white/10">
-  <div class="mx-auto max-w-7xl px-6 py-20 lg:px-10">
+  <div class="mx-auto max-w-7xl px-4 py-14 sm:px-6 sm:py-20 lg:px-10">
     <p class="text-xs uppercase tracking-[0.35em] text-xuanor-gold">Products</p>
-    <h1 class="mt-3 text-4xl text-xuanor-cream md:text-5xl">Product Directory</h1>
-    <p class="mt-6 max-w-2xl text-base leading-8 text-xuanor-muted">
+    <h1 class="mt-3 text-3xl text-xuanor-cream sm:text-4xl md:text-5xl">Product Directory</h1>
+    <p class="mt-5 max-w-2xl text-sm leading-7 text-xuanor-muted sm:text-base sm:leading-8">
       浏览 XUANOR 的品牌物件、礼赠灵感与静默仪式感产品。
     </p>
 
     {% if not has_filters %}
-    <div class="mt-12">
-      <div class="mb-8 flex items-end justify-between gap-6">
+    <div class="mt-10 sm:mt-12">
+      <div class="mb-6 sm:mb-8 flex items-end justify-between gap-6">
         <div>
           <p class="text-xs uppercase tracking-[0.35em] text-xuanor-gold">Recommended</p>
-          <h2 class="mt-3 text-3xl text-xuanor-cream md:text-4xl">Start here</h2>
+          <h2 class="mt-3 text-2xl text-xuanor-cream sm:text-3xl md:text-4xl">Start here</h2>
         </div>
       </div>
-      <div class="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
+      <div class="grid gap-5 sm:grid-cols-2 sm:gap-6 xl:grid-cols-3">
         {% for product in recommended_products %}
           {% include 'includes/product_card.html' with product=product %}
         {% empty %}
-          <div class="rounded-[1.5rem] border border-white/10 bg-white/[0.02] p-8 text-sm text-xuanor-muted sm:col-span-2 xl:col-span-3">
+          <div class="rounded-[1.5rem] border border-white/10 bg-white/[0.02] p-6 text-sm text-xuanor-muted sm:col-span-2 sm:p-8 xl:col-span-3">
             当前还没有可推荐的产品，请先在后台录入产品。
           </div>
         {% endfor %}
@@ -31,47 +31,126 @@
     </div>
     {% endif %}
 
-    <div class="mt-16">
-      <div class="mb-8 flex items-end justify-between gap-6">
+    <div class="mt-12 sm:mt-16" x-data="{ filtersOpen: false }" x-effect="document.body.classList.toggle('drawer-open', filtersOpen)">
+      <div class="mb-6 sm:mb-8 flex items-end justify-between gap-6">
         <div>
           <p class="text-xs uppercase tracking-[0.35em] text-xuanor-gold">Catalogue</p>
-          <h2 class="mt-3 text-3xl text-xuanor-cream md:text-4xl">All products</h2>
+          <h2 class="mt-3 text-2xl text-xuanor-cream sm:text-3xl md:text-4xl">All products</h2>
         </div>
       </div>
 
-      <div class="mb-8 space-y-4">
-        <div class="flex flex-wrap gap-3 text-sm">
-          <a href="{% url 'products:list' %}" class="rounded-full border px-4 py-2 transition {% if not selected_category_slug %}border-xuanor-gold bg-xuanor-gold/10 text-xuanor-cream{% else %}border-white/10 text-xuanor-muted hover:border-xuanor-gold/40 hover:text-xuanor-cream{% endif %}">全部</a>
-          {% for category in categories %}
-            <a href="{% url 'products:list' %}?category={{ category.slug }}{% if selected_featured %}&featured=1{% endif %}{% if selected_available %}&available=1{% endif %}" class="rounded-full border px-4 py-2 transition {% if selected_category_slug == category.slug %}border-xuanor-gold bg-xuanor-gold/10 text-xuanor-cream{% else %}border-white/10 text-xuanor-muted hover:border-xuanor-gold/40 hover:text-xuanor-cream{% endif %}">{{ category.name }}</a>
-          {% endfor %}
+      <div class="sticky top-[73px] z-30 -mx-4 mb-5 border-y border-white/10 bg-xuanor-black/90 px-4 py-3 backdrop-blur md:hidden sm:-mx-6 sm:px-6" x-cloak>
+        <div class="flex items-center gap-3">
+          <button type="button" @click="filtersOpen = true" class="inline-flex items-center rounded-full border border-xuanor-gold/30 bg-xuanor-gold/10 px-4 py-2 text-sm text-xuanor-cream transition hover:border-xuanor-gold/50 hover:text-xuanor-gold">
+            筛选
+          </button>
+          <div class="min-w-0 flex-1">
+            <p class="truncate text-sm text-xuanor-cream">{{ mobile_filter_summary }}</p>
+            <p class="mt-1 text-xs text-xuanor-muted">共 {{ products|length }} 件商品</p>
+          </div>
         </div>
-
-        <div class="flex flex-wrap items-center gap-3 text-sm">
-          <a href="{% url 'products:list' %}{% if selected_category_slug or selected_available %}?{% endif %}{% if selected_category_slug %}category={{ selected_category_slug }}{% endif %}{% if selected_category_slug and selected_available %}&{% endif %}{% if selected_available %}available=1{% endif %}{% if not selected_featured %}{% if selected_category_slug or selected_available %}&{% else %}?{% endif %}featured=1{% endif %}" class="rounded-full border px-4 py-2 transition {% if selected_featured %}border-xuanor-gold bg-xuanor-gold/10 text-xuanor-cream{% else %}border-white/10 text-xuanor-muted hover:border-xuanor-gold/40 hover:text-xuanor-cream{% endif %}">精选</a>
-          <a href="{% url 'products:list' %}{% if selected_category_slug or selected_featured %}?{% endif %}{% if selected_category_slug %}category={{ selected_category_slug }}{% endif %}{% if selected_category_slug and selected_featured %}&{% endif %}{% if selected_featured %}featured=1{% endif %}{% if not selected_available %}{% if selected_category_slug or selected_featured %}&{% else %}?{% endif %}available=1{% endif %}" class="rounded-full border px-4 py-2 transition {% if selected_available %}border-xuanor-gold bg-xuanor-gold/10 text-xuanor-cream{% else %}border-white/10 text-xuanor-muted hover:border-xuanor-gold/40 hover:text-xuanor-cream{% endif %}">可购买</a>
-          {% if has_filters %}
-            <a href="{% url 'products:list' %}" class="text-xuanor-gold hover:opacity-80">清除筛选</a>
-          {% endif %}
-        </div>
-
-        <p class="text-sm text-xuanor-muted">
-          {% if selected_category %}
-            当前类目：{{ selected_category.name }}
-          {% else %}
-            当前类目：全部商品
-          {% endif %}
-          {% if selected_featured %} · 已筛选精选{% endif %}
-          {% if selected_available %} · 已筛选可购买{% endif %}
-          · 共 {{ products|length }} 件商品
-        </p>
       </div>
 
-      <div class="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
+      <div class="md:hidden" x-cloak x-show="filtersOpen">
+        <div class="fixed inset-0 z-40 bg-black/38 backdrop-blur-[1px]" @click="filtersOpen = false" x-show="filtersOpen" x-transition.opacity></div>
+        <div class="fixed inset-x-0 bottom-0 z-40 mx-auto max-w-sm px-4 pb-4" x-show="filtersOpen" x-transition:enter="transform transition duration-300 ease-out" x-transition:enter-start="translate-y-full opacity-0" x-transition:enter-end="translate-y-0 opacity-100" x-transition:leave="transform transition duration-200 ease-in" x-transition:leave-start="translate-y-0 opacity-100" x-transition:leave-end="translate-y-full opacity-0">
+          <div class="overflow-hidden rounded-[2rem] border border-white/8 bg-[linear-gradient(180deg,rgba(16,16,16,0.97)_0%,rgba(8,8,8,0.95)_100%)] shadow-[0_14px_34px_rgba(0,0,0,0.3)]">
+            <div class="relative border-b border-white/8 bg-[radial-gradient(circle_at_top,rgba(200,169,107,0.08),transparent_40%),linear-gradient(180deg,rgba(255,255,255,0.022)_0%,rgba(255,255,255,0.008)_100%)] px-5 pb-4 pt-4">
+              <div class="mb-3 flex justify-center">
+                <span class="h-1 w-10 rounded-full bg-white/8"></span>
+              </div>
+              <div class="flex items-start justify-between gap-4">
+                <div>
+                  <p class="text-[10px] uppercase tracking-[0.34em] text-xuanor-gold/80">Filter panel</p>
+                  <p class="mt-2 text-[15px] text-xuanor-cream">{{ mobile_filter_summary }}</p>
+                  <p class="mt-1 text-xs leading-6 text-xuanor-muted/90">为你整理当前可浏览的商品范围。</p>
+                </div>
+                <button type="button" @click="filtersOpen = false" class="rounded-full border border-white/8 px-3 py-1.5 text-[11px] text-xuanor-muted transition hover:border-xuanor-gold/25 hover:text-xuanor-gold">关闭</button>
+              </div>
+            </div>
+
+            <div class="max-h-[46vh] space-y-4 overflow-y-auto px-5 py-4">
+              <div class="rounded-[1.35rem] border border-white/8 bg-white/[0.012] p-3.5">
+                <div class="flex items-center justify-between gap-4">
+                  <p class="text-[10px] uppercase tracking-[0.34em] text-xuanor-gold/80">类目</p>
+                  {% if has_filters %}
+                    <a href="{% url 'products:list' %}" class="text-[11px] text-xuanor-gold/90 hover:opacity-80">清除</a>
+                  {% endif %}
+                </div>
+                <div class="-mx-1 mt-3 overflow-x-auto px-1 pb-1">
+                  <div class="flex w-max gap-2.5 text-sm">
+                    <a href="{% url 'products:list' %}" class="whitespace-nowrap rounded-full border px-3.5 py-2 transition {% if not selected_category_slug %}border-xuanor-gold/55 bg-xuanor-gold/8 text-xuanor-cream{% else %}border-white/8 text-xuanor-muted hover:border-xuanor-gold/25 hover:text-xuanor-cream{% endif %}">全部</a>
+                    {% for category in categories %}
+                      <a href="{% url 'products:list' %}?category={{ category.slug }}{% if selected_featured %}&featured=1{% endif %}{% if selected_available %}&available=1{% endif %}" class="whitespace-nowrap rounded-full border px-3.5 py-2 transition {% if selected_category_slug == category.slug %}border-xuanor-gold/55 bg-xuanor-gold/8 text-xuanor-cream{% else %}border-white/8 text-xuanor-muted hover:border-xuanor-gold/25 hover:text-xuanor-cream{% endif %}">{{ category.name }}</a>
+                    {% endfor %}
+                  </div>
+                </div>
+              </div>
+
+              <div class="rounded-[1.35rem] border border-white/8 bg-white/[0.012] p-3.5">
+                <p class="text-[10px] uppercase tracking-[0.34em] text-xuanor-gold/80">筛选</p>
+                <div class="-mx-1 mt-3 overflow-x-auto px-1 pb-1">
+                  <div class="flex w-max gap-2.5 text-sm">
+                    <a href="{% url 'products:list' %}{% if selected_category_slug or selected_available %}?{% endif %}{% if selected_category_slug %}category={{ selected_category_slug }}{% endif %}{% if selected_category_slug and selected_available %}&{% endif %}{% if selected_available %}available=1{% endif %}{% if not selected_featured %}{% if selected_category_slug or selected_available %}&{% else %}?{% endif %}featured=1{% endif %}" class="whitespace-nowrap rounded-full border px-3.5 py-2 transition {% if selected_featured %}border-xuanor-gold/55 bg-xuanor-gold/8 text-xuanor-cream{% else %}border-white/8 text-xuanor-muted hover:border-xuanor-gold/25 hover:text-xuanor-cream{% endif %}">精选</a>
+                    <a href="{% url 'products:list' %}{% if selected_category_slug or selected_featured %}?{% endif %}{% if selected_category_slug %}category={{ selected_category_slug }}{% endif %}{% if selected_category_slug and selected_featured %}&{% endif %}{% if selected_featured %}featured=1{% endif %}{% if not selected_available %}{% if selected_category_slug or selected_featured %}&{% else %}?{% endif %}available=1{% endif %}" class="whitespace-nowrap rounded-full border px-3.5 py-2 transition {% if selected_available %}border-xuanor-gold/55 bg-xuanor-gold/8 text-xuanor-cream{% else %}border-white/8 text-xuanor-muted hover:border-xuanor-gold/25 hover:text-xuanor-cream{% endif %}">可购买</a>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="border-t border-white/8 bg-black/5 px-5 py-3.5">
+              <div class="flex items-center gap-2.5">
+                <a href="#product-results" @click="filtersOpen = false" class="flex-1 rounded-full border border-xuanor-gold/35 bg-[linear-gradient(180deg,rgba(200,169,107,0.2)_0%,rgba(200,169,107,0.11)_100%)] px-4 py-2.5 text-center text-sm font-medium tracking-[0.04em] text-xuanor-cream transition hover:border-xuanor-gold/55 hover:text-white">查看 {{ products|length }} 件商品</a>
+                {% if has_filters %}
+                  <a href="{% url 'products:list' %}" class="rounded-full border border-white/8 px-3.5 py-2.5 text-[11px] text-xuanor-muted transition hover:border-xuanor-gold/25 hover:text-xuanor-gold">重置</a>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mb-8 hidden rounded-[1.5rem] border border-white/10 bg-white/[0.02] p-4 sm:p-6 md:block">
+        <div class="space-y-5">
+          <div>
+            <p class="text-[11px] uppercase tracking-[0.28em] text-xuanor-gold">类目</p>
+            <div class="-mx-1 mt-3 overflow-x-auto px-1 pb-2">
+              <div class="flex w-max gap-3 text-sm">
+                <a href="{% url 'products:list' %}" class="whitespace-nowrap rounded-full border px-4 py-2 transition {% if not selected_category_slug %}border-xuanor-gold bg-xuanor-gold/10 text-xuanor-cream{% else %}border-white/10 text-xuanor-muted hover:border-xuanor-gold/40 hover:text-xuanor-cream{% endif %}">全部</a>
+                {% for category in categories %}
+                  <a href="{% url 'products:list' %}?category={{ category.slug }}{% if selected_featured %}&featured=1{% endif %}{% if selected_available %}&available=1{% endif %}" class="whitespace-nowrap rounded-full border px-4 py-2 transition {% if selected_category_slug == category.slug %}border-xuanor-gold bg-xuanor-gold/10 text-xuanor-cream{% else %}border-white/10 text-xuanor-muted hover:border-xuanor-gold/40 hover:text-xuanor-cream{% endif %}">{{ category.name }}</a>
+                {% endfor %}
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div class="flex items-center justify-between gap-4">
+              <p class="text-[11px] uppercase tracking-[0.28em] text-xuanor-gold">筛选</p>
+              {% if has_filters %}
+                <a href="{% url 'products:list' %}" class="text-xs text-xuanor-gold hover:opacity-80">清除筛选</a>
+              {% endif %}
+            </div>
+            <div class="-mx-1 mt-3 overflow-x-auto px-1 pb-2">
+              <div class="flex w-max gap-3 text-sm">
+                <a href="{% url 'products:list' %}{% if selected_category_slug or selected_available %}?{% endif %}{% if selected_category_slug %}category={{ selected_category_slug }}{% endif %}{% if selected_category_slug and selected_available %}&{% endif %}{% if selected_available %}available=1{% endif %}{% if not selected_featured %}{% if selected_category_slug or selected_available %}&{% else %}?{% endif %}featured=1{% endif %}" class="whitespace-nowrap rounded-full border px-4 py-2 transition {% if selected_featured %}border-xuanor-gold bg-xuanor-gold/10 text-xuanor-cream{% else %}border-white/10 text-xuanor-muted hover:border-xuanor-gold/40 hover:text-xuanor-cream{% endif %}">精选</a>
+                <a href="{% url 'products:list' %}{% if selected_category_slug or selected_featured %}?{% endif %}{% if selected_category_slug %}category={{ selected_category_slug }}{% endif %}{% if selected_category_slug and selected_featured %}&{% endif %}{% if selected_featured %}featured=1{% endif %}{% if not selected_available %}{% if selected_category_slug or selected_featured %}&{% else %}?{% endif %}available=1{% endif %}" class="whitespace-nowrap rounded-full border px-4 py-2 transition {% if selected_available %}border-xuanor-gold bg-xuanor-gold/10 text-xuanor-cream{% else %}border-white/10 text-xuanor-muted hover:border-xuanor-gold/40 hover:text-xuanor-cream{% endif %}">可购买</a>
+              </div>
+            </div>
+          </div>
+
+          <div class="border-t border-white/10 pt-4 text-sm text-xuanor-muted">
+            <p>{{ mobile_filter_summary }}</p>
+            <p class="mt-2">共 {{ products|length }} 件商品</p>
+          </div>
+        </div>
+      </div>
+
+      <div id="product-results" class="grid gap-5 sm:grid-cols-2 sm:gap-6 xl:grid-cols-3">
       {% for product in products %}
         {% include 'includes/product_card.html' with product=product %}
       {% empty %}
-        <div class="rounded-[1.5rem] border border-white/10 bg-white/[0.02] p-8 text-sm text-xuanor-muted sm:col-span-2 xl:col-span-3">
+        <div class="rounded-[1.5rem] border border-white/10 bg-white/[0.02] p-6 text-sm text-xuanor-muted sm:col-span-2 sm:p-8 xl:col-span-3">
           {% if has_filters %}
             当前筛选下暂无可展示商品，请切换类目或清除筛选。
           {% else %}

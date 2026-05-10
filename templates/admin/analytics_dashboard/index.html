@@ -1,275 +1,156 @@
-{% extends "admin/base_site.html" %}
-{% load i18n %}
+{% extends "admin/_xuanor_shell.html" %}
 
-{% block extrastyle %}
-{{ block.super }}
-<style>
-  .dashboard-page {
-    display: grid;
-    gap: 20px;
-  }
-  .dashboard-toolbar form {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 12px;
-    align-items: end;
-  }
-  .dashboard-toolbar .field-group {
-    display: grid;
-    gap: 6px;
-  }
-  .dashboard-toolbar label {
-    font-weight: 600;
-  }
-  .dashboard-toolbar .actions {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-  .dashboard-toolbar .actions .button,
-  .dashboard-toolbar .actions button {
-    margin: 0;
-  }
-  .kpi-grid,
-  .panel-grid,
-  .placeholder-grid {
-    display: grid;
-    gap: 16px;
-  }
-  .kpi-grid {
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  }
-  .panel-grid {
-    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
-  }
-  .placeholder-grid {
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  }
-  .metric-card {
-    padding: 18px;
-  }
-  .metric-card .label {
-    color: #666;
-    font-size: 12px;
-    margin-bottom: 8px;
-  }
-  .metric-card .value {
-    font-size: 26px;
-    font-weight: 700;
-    line-height: 1.2;
-  }
-  .metric-card .hint {
-    color: #666;
-    margin-top: 8px;
-    font-size: 12px;
-  }
-  .chart-table,
-  .simple-table {
-    width: 100%;
-    border-collapse: collapse;
-  }
-  .chart-table th,
-  .chart-table td,
-  .simple-table th,
-  .simple-table td {
-    padding: 8px 10px;
-    border-bottom: 1px solid #eee;
-    vertical-align: top;
-  }
-  .chart-table th,
-  .simple-table th {
-    text-align: left;
-    color: #666;
-    font-size: 12px;
-    white-space: nowrap;
-  }
-  .bar-track {
-    width: 100%;
-    min-width: 120px;
-    height: 8px;
-    background: #f1f1f1;
-    border-radius: 999px;
-    overflow: hidden;
-  }
-  .bar-fill {
-    height: 100%;
-    border-radius: 999px;
-    background: #417690;
-  }
-  .bar-fill.secondary {
-    background: #79aec8;
-  }
-  .status-list {
-    display: grid;
-    gap: 10px;
-    margin: 12px 0 0;
-    padding: 0;
-    list-style: none;
-  }
-  .status-list li {
-    display: grid;
-    gap: 6px;
-  }
-  .status-meta {
-    display: flex;
-    justify-content: space-between;
-    gap: 12px;
-    font-size: 13px;
-  }
-  .module h2 + .subsection,
-  .module h3 + .simple-table {
-    margin-top: 8px;
-  }
-  .subsection {
-    margin-top: 18px;
-  }
-  .placeholder-card {
-    padding: 18px;
-    border: 1px dashed #c4dce8;
-    border-radius: 8px;
-    background: #fafcfd;
-  }
-  .placeholder-card h3 {
-    margin-top: 0;
-  }
-  .muted {
-    color: #666;
-  }
-  .compact-list {
-    margin: 0;
-    padding-left: 18px;
-  }
-</style>
-{% endblock %}
+{% block x_admin_content %}
+<div class="x-admin-analytics-grid">
+  <section class="module x-admin-analytics-hero">
+    <div class="x-admin-analytics-hero-copy">
+      <div class="x-admin-tactical-tag">Strategic Entry / Analytics</div>
+      <div class="x-admin-panel-title-group">
+        <h2 class="x-admin-panel-title">经营驾驶舱</h2>
+        <p class="x-admin-panel-copy">当前范围：{{ filters.label }} / {{ filters.currency_label }}。订单指标按创建时间或支付完成时间分别统计，支付分析按支付记录时间统计。</p>
+      </div>
+      <div class="x-admin-home-hero-actions">
+        <a class="x-admin-button is-primary" href="{% url 'trade_cockpit_dashboard' %}">战情驾驶舱</a>
+        <a class="x-admin-button" href="{% url 'analytics_dashboard:quiz' %}">五行测试统计</a>
+        <a class="x-admin-button" href="{% url 'support_chat_console' %}">客服控制台</a>
+      </div>
+    </div>
+    <div class="x-admin-analytics-filter-shell">
+      <div class="x-admin-panel-title-group">
+        <h3>指挥筛选</h3>
+        <p class="x-admin-panel-copy">用时间和币种切换经营观测面。</p>
+      </div>
+      <form method="get" class="x-admin-filter-form x-admin-analytics-filter-form">
+        <div class="field-group">
+          <label for="id_range">时间范围</label>
+          <select name="range" id="id_range">
+            {% for value, label in range_options %}
+            <option value="{{ value }}" {% if filters.range_key == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field-group">
+          <label for="id_start_date">开始日期</label>
+          <input type="date" name="start_date" id="id_start_date" value="{{ filters.start_date|date:'Y-m-d' }}">
+        </div>
+        <div class="field-group">
+          <label for="id_end_date">结束日期</label>
+          <input type="date" name="end_date" id="id_end_date" value="{{ filters.end_date|date:'Y-m-d' }}">
+        </div>
+        <div class="field-group">
+          <label for="id_currency">币种</label>
+          <select name="currency" id="id_currency">
+            {% for value, label in currency_options %}
+            <option value="{{ value }}" {% if filters.currency == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="actions">
+          <button type="submit" class="button default">更新看板</button>
+          <a href="{% url 'analytics_dashboard:index' %}" class="button">重置筛选</a>
+        </div>
+      </form>
+    </div>
+  </section>
 
-{% block breadcrumbs %}
-<div class="breadcrumbs">
-  <a href="{% url 'admin:index' %}">后台首页</a>
-  &rsaquo; 数据看板
-</div>
-{% endblock %}
-
-{% block content %}
-<div class="dashboard-page">
-  <div class="module dashboard-toolbar">
-    <h2>经营驾驶舱</h2>
-    <p class="muted">当前范围：{{ filters.label }} / {{ filters.currency_label }}。订单指标按创建时间或支付完成时间分别统计，支付分析按支付记录时间统计；营销与漏斗数据暂以“待接入”显示。</p>
-    <form method="get">
-      <div class="field-group">
-        <label for="id_range">时间范围</label>
-        <select name="range" id="id_range">
-          {% for value, label in range_options %}
-          <option value="{{ value }}" {% if filters.range_key == value %}selected{% endif %}>{{ label }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="field-group">
-        <label for="id_start_date">开始日期</label>
-        <input type="date" name="start_date" id="id_start_date" value="{{ filters.start_date|date:'Y-m-d' }}">
-      </div>
-      <div class="field-group">
-        <label for="id_end_date">结束日期</label>
-        <input type="date" name="end_date" id="id_end_date" value="{{ filters.end_date|date:'Y-m-d' }}">
-      </div>
-      <div class="field-group">
-        <label for="id_currency">币种</label>
-        <select name="currency" id="id_currency">
-          {% for value, label in currency_options %}
-          <option value="{{ value }}" {% if filters.currency == value %}selected{% endif %}>{{ label }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="actions">
-        <button type="submit" class="button default">更新看板</button>
-        <a href="{% url 'analytics_dashboard:index' %}" class="button">重置筛选</a>
-      </div>
-    </form>
+  <div class="trade-cockpit-command-metrics x-admin-analytics-command-grid">
+    <article class="trade-cockpit-command-cell is-gmv">
+      <span>订单总数</span>
+      <strong>{{ kpis.order_count }}</strong>
+      <small>{{ semantics.order_created }}</small>
+    </article>
+    <article class="trade-cockpit-command-cell is-paid-rate">
+      <span>已支付订单</span>
+      <strong>{{ kpis.paid_order_count }}</strong>
+      <small>{{ semantics.paid_orders }}</small>
+    </article>
+    <article class="trade-cockpit-command-cell is-alerts">
+      <span>GMV</span>
+      <strong>{{ filters.currency }} {{ kpis.gmv|floatformat:2 }}</strong>
+      <small>仅统计已支付交易，{{ semantics.transactions }}</small>
+    </article>
+    <article class="trade-cockpit-command-cell is-net">
+      <span>净收入</span>
+      <strong>{{ filters.currency }} {{ kpis.net_revenue|floatformat:2 }}</strong>
+      <small>GMV - 退款 - 手续费（{{ semantics.ledger }}）</small>
+    </article>
+    <article class="trade-cockpit-command-cell is-gmv">
+      <span>支付转化率</span>
+      <strong>{{ kpis.payment_conversion_rate|floatformat:1 }}%</strong>
+      <small>已支付订单 / 订单总数</small>
+    </article>
+    <article class="trade-cockpit-command-cell is-paid-rate">
+      <span>平均客单价</span>
+      <strong>{{ filters.currency }} {{ kpis.average_order_value|floatformat:2 }}</strong>
+      <small>GMV / 已支付订单数</small>
+    </article>
   </div>
 
-  <div class="kpi-grid">
-    <div class="module metric-card">
-      <div class="label">订单总数</div>
-      <div class="value">{{ kpis.order_count }}</div>
-      <div class="hint">{{ semantics.order_created }}</div>
-    </div>
-    <div class="module metric-card">
-      <div class="label">已支付订单</div>
-      <div class="value">{{ kpis.paid_order_count }}</div>
-      <div class="hint">{{ semantics.paid_orders }}</div>
-    </div>
-    <div class="module metric-card">
-      <div class="label">GMV</div>
-      <div class="value">{{ filters.currency }} {{ kpis.gmv|floatformat:2 }}</div>
-      <div class="hint">仅统计已支付交易，{{ semantics.transactions }}</div>
-    </div>
-    <div class="module metric-card">
-      <div class="label">支付转化率</div>
-      <div class="value">{{ kpis.payment_conversion_rate|floatformat:1 }}%</div>
-      <div class="hint">已支付订单 / 订单总数</div>
-    </div>
-    <div class="module metric-card">
-      <div class="label">退款率</div>
-      <div class="value">{{ kpis.refund_rate|floatformat:1 }}%</div>
-      <div class="hint">退款金额 / GMV</div>
-    </div>
-    <div class="module metric-card">
-      <div class="label">净收入</div>
-      <div class="value">{{ filters.currency }} {{ kpis.net_revenue|floatformat:2 }}</div>
-      <div class="hint">GMV - 退款 - 手续费（{{ semantics.ledger }}）</div>
-    </div>
-    <div class="module metric-card">
-      <div class="label">平均客单价</div>
-      <div class="value">{{ filters.currency }} {{ kpis.average_order_value|floatformat:2 }}</div>
-      <div class="hint">GMV / 已支付订单数（{{ semantics.transactions }}）</div>
-    </div>
-    <div class="module metric-card">
-      <div class="label">发货中订单</div>
-      <div class="value">{{ kpis.shipping_in_progress_count }}</div>
-      <div class="hint">{{ semantics.shipping }}</div>
-    </div>
-    <div class="module metric-card">
-      <div class="label">已送达订单</div>
-      <div class="value">{{ kpis.delivered_order_count }}</div>
-      <div class="hint">{{ semantics.shipping }}</div>
-    </div>
-  </div>
+  <div class="x-admin-analytics-theater">
+    <section class="module x-admin-analytics-primary">
+      <div class="x-admin-panel-header">
+        <div class="x-admin-panel-title-group">
+          <h2 class="x-admin-panel-title">经营态势主屏</h2>
+          <p class="x-admin-panel-copy">把支付、退款、履约与订单节奏压成一张主战区视图。</p>
+        </div>
+      </div>
+      <div class="x-admin-radar-world-metrics x-admin-analytics-world-metrics">
+        <article>
+          <strong>{{ kpis.refund_rate|floatformat:1 }}%</strong>
+          <span>退款率</span>
+        </article>
+        <article>
+          <strong>{{ kpis.shipping_in_progress_count }}</strong>
+          <span>发货中订单</span>
+        </article>
+        <article>
+          <strong>{{ kpis.delivered_order_count }}</strong>
+          <span>已送达订单</span>
+        </article>
+        <article>
+          <strong>{{ financial_summary.refund_count }}</strong>
+          <span>退款笔数</span>
+        </article>
+      </div>
+      <div class="x-admin-trend-chart-card x-admin-analytics-trend-card">
+        <div class="x-admin-panel-title-group">
+          <h3>订单创建与支付完成趋势</h3>
+          <p class="x-admin-panel-copy">订单数按订单创建时间统计，支付金额按订单支付完成时间统计。</p>
+        </div>
+        <table class="chart-table">
+          <thead>
+            <tr>
+              <th>日期</th>
+              <th>订单趋势</th>
+              <th>订单数</th>
+              <th>支付金额趋势</th>
+              <th>已支付金额</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in order_trends.rows %}
+            <tr>
+              <td>{{ row.date_label }}</td>
+              <td><div class="bar-track"><div class="bar-fill" style="width: {{ row.order_width }}%"></div></div></td>
+              <td>{{ row.order_count }}</td>
+              <td><div class="bar-track"><div class="bar-fill secondary" style="width: {{ row.paid_width }}%"></div></div></td>
+              <td>{{ filters.currency }} {{ row.paid_amount|floatformat:2 }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" class="muted">当前时间范围暂无数据。</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
 
-  <div class="panel-grid">
-    <div class="module">
-      <h2>订单创建与支付完成趋势</h2>
-      <p class="muted">订单数按订单创建时间统计，支付金额按订单支付完成时间统计。</p>
-      <table class="chart-table">
-        <thead>
-          <tr>
-            <th>日期</th>
-            <th>订单趋势</th>
-            <th>订单数</th>
-            <th>支付金额趋势</th>
-            <th>已支付金额</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for row in order_trends.rows %}
-          <tr>
-            <td>{{ row.date_label }}</td>
-            <td>
-              <div class="bar-track"><div class="bar-fill" style="width: {{ row.order_width }}%"></div></div>
-            </td>
-            <td>{{ row.order_count }}</td>
-            <td>
-              <div class="bar-track"><div class="bar-fill secondary" style="width: {{ row.paid_width }}%"></div></div>
-            </td>
-            <td>{{ filters.currency }} {{ row.paid_amount|floatformat:2 }}</td>
-          </tr>
-          {% empty %}
-          <tr><td colspan="5" class="muted">当前时间范围暂无数据。</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-
-    <div class="module">
-      <h2>状态分布</h2>
+    <aside class="module x-admin-analytics-side-rail">
+      <div class="x-admin-panel-header">
+        <div class="x-admin-panel-title-group">
+          <h2 class="x-admin-panel-title">状态矩阵</h2>
+          <p class="x-admin-panel-copy">拆分订单、支付与履约状态，辅助快速判断当前瓶颈。</p>
+        </div>
+      </div>
       <div class="subsection">
         <h3>订单状态</h3>
         <ul class="status-list">
@@ -304,47 +185,29 @@
           {% endfor %}
         </ul>
       </div>
-    </div>
+    </aside>
   </div>
 
-  <div class="panel-grid">
-    <div class="module">
-      <h2>财务摘要</h2>
-      <p class="muted">{{ semantics.transactions }}；净收入按 {{ semantics.ledger }} 统计。</p>
-      <table class="simple-table">
-        <tbody>
-          <tr><th>GMV</th><td>{{ filters.currency }} {{ financial_summary.gross_total|floatformat:2 }}</td></tr>
-          <tr><th>退款金额</th><td>{{ filters.currency }} {{ financial_summary.refund_total|floatformat:2 }}</td></tr>
-          <tr><th>手续费</th><td>{{ filters.currency }} {{ financial_summary.fee_total|floatformat:2 }}</td></tr>
-          <tr><th>净收入</th><td>{{ filters.currency }} {{ financial_summary.net_revenue|floatformat:2 }}</td></tr>
-          <tr><th>退款笔数</th><td>{{ financial_summary.refund_count }}</td></tr>
-          <tr><th>已支付交易数</th><td>{{ financial_summary.paid_transaction_count }}</td></tr>
-        </tbody>
-      </table>
-    </div>
+  <div class="x-admin-analytics-ops-grid">
+    <section class="module">
+      <div class="x-admin-panel-header"><div class="x-admin-panel-title-group"><h2 class="x-admin-panel-title">财务摘要</h2><p class="x-admin-panel-copy">{{ semantics.transactions }}；净收入按 {{ semantics.ledger }} 统计。</p></div></div>
+      <table class="simple-table"><tbody>
+        <tr><th>GMV</th><td>{{ filters.currency }} {{ financial_summary.gross_total|floatformat:2 }}</td></tr>
+        <tr><th>退款金额</th><td>{{ filters.currency }} {{ financial_summary.refund_total|floatformat:2 }}</td></tr>
+        <tr><th>手续费</th><td>{{ filters.currency }} {{ financial_summary.fee_total|floatformat:2 }}</td></tr>
+        <tr><th>净收入</th><td>{{ filters.currency }} {{ financial_summary.net_revenue|floatformat:2 }}</td></tr>
+        <tr><th>退款笔数</th><td>{{ financial_summary.refund_count }}</td></tr>
+        <tr><th>已支付交易数</th><td>{{ financial_summary.paid_transaction_count }}</td></tr>
+      </tbody></table>
+    </section>
 
-    <div class="module">
-      <h2>支付记录分析</h2>
-      <p class="muted">{{ semantics.payments }}，用于观察支付渠道与失败记录，不作为经营收入主口径。</p>
+    <section class="module">
+      <div class="x-admin-panel-header"><div class="x-admin-panel-title-group"><h2 class="x-admin-panel-title">支付记录分析</h2><p class="x-admin-panel-copy">{{ semantics.payments }}，用于观察支付渠道与失败记录。</p></div></div>
       <table class="simple-table">
-        <thead>
-          <tr>
-            <th>渠道</th>
-            <th>记录数</th>
-            <th>成功笔数</th>
-            <th>成功金额</th>
-            <th>成功率</th>
-          </tr>
-        </thead>
+        <thead><tr><th>渠道</th><th>记录数</th><th>成功笔数</th><th>成功金额</th><th>成功率</th></tr></thead>
         <tbody>
           {% for row in payment_summary.providers %}
-          <tr>
-            <td>{{ row.provider_label }}</td>
-            <td>{{ row.total_count }}</td>
-            <td>{{ row.paid_count }}</td>
-            <td>{{ filters.currency }} {{ row.paid_amount|floatformat:2 }}</td>
-            <td>{{ row.success_rate|floatformat:1 }}%</td>
-          </tr>
+          <tr><td>{{ row.provider_label }}</td><td>{{ row.total_count }}</td><td>{{ row.paid_count }}</td><td>{{ filters.currency }} {{ row.paid_amount|floatformat:2 }}</td><td>{{ row.success_rate|floatformat:1 }}%</td></tr>
           {% empty %}
           <tr><td colspan="5" class="muted">当前时间范围暂无支付记录。</td></tr>
           {% endfor %}
@@ -360,26 +223,15 @@
           {% endfor %}
         </ul>
       </div>
-    </div>
+    </section>
 
-    <div class="module">
-      <h2>发货状态分析</h2>
-      <p class="muted">{{ semantics.shipping }}</p>
+    <section class="module">
+      <div class="x-admin-panel-header"><div class="x-admin-panel-title-group"><h2 class="x-admin-panel-title">发货状态分析</h2><p class="x-admin-panel-copy">{{ semantics.shipping }}</p></div></div>
       <table class="simple-table">
-        <thead>
-          <tr>
-            <th>状态</th>
-            <th>数量</th>
-            <th>占比</th>
-          </tr>
-        </thead>
+        <thead><tr><th>状态</th><th>数量</th><th>占比</th></tr></thead>
         <tbody>
           {% for row in shipping_summary.rows %}
-          <tr>
-            <td>{{ row.label }}</td>
-            <td>{{ row.count }}</td>
-            <td>{{ row.ratio|floatformat:1 }}%</td>
-          </tr>
+          <tr><td>{{ row.label }}</td><td>{{ row.count }}</td><td>{{ row.ratio|floatformat:1 }}%</td></tr>
           {% endfor %}
         </tbody>
       </table>
@@ -393,145 +245,72 @@
           {% endfor %}
         </ul>
       </div>
-    </div>
+    </section>
   </div>
 
-  <div class="panel-grid">
-    <div class="module">
-      <h2>商品分析</h2>
+  <div class="x-admin-analytics-market-grid">
+    <section class="module">
+      <div class="x-admin-panel-header"><div class="x-admin-panel-title-group"><h2 class="x-admin-panel-title">商品分析</h2><p class="x-admin-panel-copy">观察销量、销售额与低库存商品，优先支持补货和选品判断。</p></div></div>
       <div class="subsection">
         <h3>热销商品（按销量）</h3>
-        <table class="simple-table">
-          <thead>
-            <tr>
-              <th>商品</th>
-              <th>SKU</th>
-              <th>销量</th>
-              <th>销售额</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for row in product_summary.top_by_quantity %}
-            <tr>
-              <td>{{ row.product_name_snapshot }}</td>
-              <td>{{ row.sku_snapshot|default:"-" }}</td>
-              <td>{{ row.total_quantity }}</td>
-              <td>{{ filters.currency }} {{ row.total_sales|floatformat:2 }}</td>
-            </tr>
-            {% empty %}
-            <tr><td colspan="4" class="muted">当前时间范围暂无已支付商品数据。</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
+        <table class="simple-table"><thead><tr><th>商品</th><th>SKU</th><th>销量</th><th>销售额</th></tr></thead><tbody>
+          {% for row in product_summary.top_by_quantity %}
+          <tr><td>{{ row.product_name_snapshot }}</td><td>{{ row.sku_snapshot|default:"-" }}</td><td>{{ row.total_quantity }}</td><td>{{ filters.currency }} {{ row.total_sales|floatformat:2 }}</td></tr>
+          {% empty %}
+          <tr><td colspan="4" class="muted">当前时间范围暂无已支付商品数据。</td></tr>
+          {% endfor %}
+        </tbody></table>
       </div>
       <div class="subsection">
         <h3>热销商品（按销售额）</h3>
-        <table class="simple-table">
-          <thead>
-            <tr>
-              <th>商品</th>
-              <th>SKU</th>
-              <th>销售额</th>
-              <th>销量</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for row in product_summary.top_by_sales %}
-            <tr>
-              <td>{{ row.product_name_snapshot }}</td>
-              <td>{{ row.sku_snapshot|default:"-" }}</td>
-              <td>{{ filters.currency }} {{ row.total_sales|floatformat:2 }}</td>
-              <td>{{ row.total_quantity }}</td>
-            </tr>
-            {% empty %}
-            <tr><td colspan="4" class="muted">当前时间范围暂无已支付商品数据。</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
+        <table class="simple-table"><thead><tr><th>商品</th><th>SKU</th><th>销售额</th><th>销量</th></tr></thead><tbody>
+          {% for row in product_summary.top_by_sales %}
+          <tr><td>{{ row.product_name_snapshot }}</td><td>{{ row.sku_snapshot|default:"-" }}</td><td>{{ filters.currency }} {{ row.total_sales|floatformat:2 }}</td><td>{{ row.total_quantity }}</td></tr>
+          {% empty %}
+          <tr><td colspan="4" class="muted">当前时间范围暂无已支付商品数据。</td></tr>
+          {% endfor %}
+        </tbody></table>
       </div>
       <div class="subsection">
         <h3>低库存可售商品</h3>
-        <table class="simple-table">
-          <thead>
-            <tr>
-              <th>商品</th>
-              <th>SKU</th>
-              <th>库存</th>
-              <th>售价</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for product in product_summary.low_stock_products %}
-            <tr>
-              <td>{{ product.name }}</td>
-              <td>{{ product.sku|default:"-" }}</td>
-              <td>{{ product.stock_quantity }}</td>
-              <td>{{ product.currency }} {{ product.price|floatformat:2 }}</td>
-            </tr>
-            {% empty %}
-            <tr><td colspan="4" class="muted">当前没有低库存可售商品。</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
+        <table class="simple-table"><thead><tr><th>商品</th><th>SKU</th><th>库存</th><th>售价</th></tr></thead><tbody>
+          {% for product in product_summary.low_stock_products %}
+          <tr><td>{{ product.name }}</td><td>{{ product.sku|default:"-" }}</td><td>{{ product.stock_quantity }}</td><td>{{ product.currency }} {{ product.price|floatformat:2 }}</td></tr>
+          {% empty %}
+          <tr><td colspan="4" class="muted">当前没有低库存可售商品。</td></tr>
+          {% endfor %}
+        </tbody></table>
       </div>
-    </div>
+    </section>
 
-    <div class="module">
-      <h2>地区分布</h2>
+    <section class="module">
+      <div class="x-admin-panel-header"><div class="x-admin-panel-title-group"><h2 class="x-admin-panel-title">地区分布</h2><p class="x-admin-panel-copy">帮助识别高价值国家与城市，为物流和营销判断提供参考。</p></div></div>
       <div class="subsection">
         <h3>国家分布</h3>
-        <table class="simple-table">
-          <thead>
-            <tr>
-              <th>国家</th>
-              <th>订单数</th>
-              <th>销售额</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for row in geo_summary.countries %}
-            <tr>
-              <td>{{ row.shipping_country }}</td>
-              <td>{{ row.order_count }}</td>
-              <td>{{ filters.currency }} {{ row.sales_total|floatformat:2 }}</td>
-            </tr>
-            {% empty %}
-            <tr><td colspan="3" class="muted">当前时间范围没有已支付地区数据。</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
+        <table class="simple-table"><thead><tr><th>国家</th><th>订单数</th><th>销售额</th></tr></thead><tbody>
+          {% for row in geo_summary.countries %}
+          <tr><td>{{ row.shipping_country }}</td><td>{{ row.order_count }}</td><td>{{ filters.currency }} {{ row.sales_total|floatformat:2 }}</td></tr>
+          {% empty %}
+          <tr><td colspan="3" class="muted">当前时间范围没有已支付地区数据。</td></tr>
+          {% endfor %}
+        </tbody></table>
       </div>
       <div class="subsection">
         <h3>城市 Top</h3>
-        <table class="simple-table">
-          <thead>
-            <tr>
-              <th>城市</th>
-              <th>国家</th>
-              <th>订单数</th>
-              <th>销售额</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for row in geo_summary.cities %}
-            <tr>
-              <td>{{ row.shipping_city }}</td>
-              <td>{{ row.shipping_country }}</td>
-              <td>{{ row.order_count }}</td>
-              <td>{{ filters.currency }} {{ row.sales_total|floatformat:2 }}</td>
-            </tr>
-            {% empty %}
-            <tr><td colspan="4" class="muted">当前时间范围没有已支付城市数据。</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
+        <table class="simple-table"><thead><tr><th>城市</th><th>国家</th><th>订单数</th><th>销售额</th></tr></thead><tbody>
+          {% for row in geo_summary.cities %}
+          <tr><td>{{ row.shipping_city }}</td><td>{{ row.shipping_country }}</td><td>{{ row.order_count }}</td><td>{{ filters.currency }} {{ row.sales_total|floatformat:2 }}</td></tr>
+          {% empty %}
+          <tr><td colspan="4" class="muted">当前时间范围没有已支付城市数据。</td></tr>
+          {% endfor %}
+        </tbody></table>
       </div>
-    </div>
+    </section>
   </div>
 
-  <div class="module">
-    <h2>营销与漏斗数据（待接入）</h2>
-    <div class="placeholder-grid">
+  <section class="module x-admin-analytics-marketing-module">
+    <div class="x-admin-panel-header"><div class="x-admin-panel-title-group"><h2 class="x-admin-panel-title">营销与漏斗数据（待接入）</h2><p class="x-admin-panel-copy">先保留占位，为后续接入 GA4、广告平台和漏斗事件埋点做准备。</p></div></div>
+    <div class="x-admin-feature-grid">
       {% for item in marketing_placeholders %}
       <div class="placeholder-card">
         <h3>{{ item.title }}</h3>
@@ -539,6 +318,6 @@
       </div>
       {% endfor %}
     </div>
-  </div>
+  </section>
 </div>
 {% endblock %}

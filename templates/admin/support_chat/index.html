@@ -1,453 +1,473 @@
-{% extends 'admin/base_site.html' %}
+{% extends "admin/_xuanor_shell.html" %}
 
-{% block content %}
-  <div id="support-chat-admin" data-sessions-url="/admin/support-chat/sessions/" data-messages-url="/admin/support-chat/messages/" data-reply-url="/admin/support-chat/reply/" data-draft-url="/admin/support-chat/draft/" data-close-url="/admin/support-chat/close/" data-poll-interval="{{ poll_interval_ms }}" data-realtime-enabled="{{ realtime_enabled|yesno:'true,false' }}" data-websocket-url="{{ operator_websocket_url }}" class="space-y-6">
-    <div>
-      <h1 style="margin-bottom: 4px;">Support chat</h1>
-      <p style="margin: 0; color: #666;">集中处理网站咨询、订单问题和离线留言。</p>
-      <div style="margin-top: 10px; font-size: 12px; color: #444; display: flex; gap: 12px; flex-wrap: wrap;">
-        <span>OpenClaw: <strong>{% if openclaw_enabled %}Enabled{% else %}Disabled{% endif %}</strong></span>
-        <span>Auto reply: <strong>{% if openclaw_auto_reply_enabled %}On{% else %}Off{% endif %}</strong></span>
-        <span>Drafts: <strong>{% if openclaw_draft_enabled %}On{% else %}Off{% endif %}</strong></span>
-        <span>Label: <strong>{{ openclaw_label }}</strong></span>
+{% block x_admin_content %}
+<div id="support-chat-admin" data-sessions-url="/admin/support-chat/sessions/" data-messages-url="/admin/support-chat/messages/" data-reply-url="/admin/support-chat/reply/" data-draft-url="/admin/support-chat/draft/" data-close-url="/admin/support-chat/close/" data-poll-interval="{{ poll_interval_ms }}" data-realtime-enabled="{{ realtime_enabled|yesno:'true,false' }}" data-websocket-url="{{ operator_websocket_url }}" class="x-admin-support-grid">
+  <section class="module x-admin-support-hero">
+    <div class="x-admin-support-hero-copy">
+      <div class="x-admin-tactical-tag">Strategic Entry / Support</div>
+      <div class="x-admin-panel-title-group">
+        <h2 class="x-admin-panel-title">客服协同中控台</h2>
+        <p class="x-admin-panel-copy">OpenClaw 用于草稿协作与自动回复辅助，运营仍在同一个工作台里完成最终判断、编辑与发送。</p>
+      </div>
+      <div class="x-admin-home-hero-actions">
+        <a class="x-admin-button is-primary" href="{% url 'backoffice_customers' %}">客户工作台</a>
+        <a class="x-admin-button" href="{% url 'trade_cockpit_dashboard' %}">战情驾驶舱</a>
+        <a class="x-admin-button" href="{% url 'analytics_dashboard:index' %}">经营分析</a>
       </div>
     </div>
-    <div style="display: grid; grid-template-columns: 340px 1fr; gap: 24px; align-items: start;">
-      <aside style="border: 1px solid #ddd; border-radius: 12px; background: #fff; overflow: hidden;">
-        <div style="padding: 16px; border-bottom: 1px solid #eee;"><strong>Conversations</strong></div>
-        <div id="support-chat-session-list">
-          {% for session in sessions %}
-            <button type="button" class="support-chat-session-item{% if selected_session and selected_session.id == session.id %} is-active{% endif %}" data-session-id="{{ session.id }}" data-visitor-name="{{ session.visitor_name|default:'Anonymous visitor' }}" data-visitor-email="{{ session.visitor_email }}" data-related-order-no="{{ session.related_order_no }}" data-visitor-language="{{ session.visitor_language }}" data-status="{{ session.status }}" style="display: block; width: 100%; padding: 14px 16px; text-align: left; border: 0; border-bottom: 1px solid #f1f1f1; background: {% if selected_session and selected_session.id == session.id %}#f7f7f7{% else %}#fff{% endif %}; cursor: pointer;">
-              <div style="display: flex; justify-content: space-between; gap: 12px; align-items: start;">
-                <strong>{{ session.visitor_name|default:'Anonymous visitor' }}</strong>
-                <span style="color: {% if session.unread_for_operator %}#b42318{% else %}#666{% endif %}; font-size: 12px;">{{ session.status }}</span>
-              </div>
-              <div style="margin-top: 6px; font-size: 12px; color: #666;">{{ session.visitor_email|default:session.visitor_language }}{% if session.related_order_no %} · 订单 {{ session.related_order_no }}{% endif %}</div>
-              <div style="margin-top: 6px; font-size: 12px; color: #444; line-height: 1.5;">{{ session.messages.last.display_for_operator|default:''|truncatechars:80 }}</div>
-              <div style="margin-top: 8px; font-size: 12px; color: #666;">Unread {{ session.unread_for_operator }}{% if session.last_message_at %} · {{ session.last_message_at|date:'Y-m-d H:i' }}{% endif %}</div>
-            </button>
-          {% empty %}
-            <div style="padding: 16px; color: #666;">No conversations yet.</div>
-          {% endfor %}
-        </div>
-      </aside>
-      <section style="border: 1px solid #ddd; border-radius: 12px; background: #fff; overflow: hidden; min-height: 560px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px; border-bottom: 1px solid #eee; gap: 12px;">
-          <div>
-            <strong id="support-chat-current-title">{% if selected_session %}{{ selected_session.visitor_name|default:'Anonymous visitor' }}{% else %}Select a conversation{% endif %}</strong>
-            <div id="support-chat-current-meta" style="margin-top: 4px; color: #666; font-size: 12px;">{% if selected_session %}{{ selected_session.visitor_email|default:selected_session.visitor_language }}{% if selected_session.related_order_no %} · 订单 {{ selected_session.related_order_no }}{% endif %} · {{ selected_session.status }}{% endif %}</div>
-          </div>
-          <button type="button" id="support-chat-close" {% if not selected_session %}disabled{% endif %}>Close conversation</button>
-        </div>
-        <div id="support-chat-message-list" style="padding: 16px; min-height: 360px; max-height: 520px; overflow-y: auto; background: #fafafa;">
-          {% if selected_session %}
-            {% for message in selected_session_messages %}
-              <article style="margin-bottom: 14px; padding: 14px; border-radius: 12px; background: #fff; border: 1px solid #eee;">
-                <div style="display: flex; justify-content: space-between; gap: 12px; font-size: 12px; color: #666;">
-                  <span>{{ message.sender_type }}</span>
-                  <span>{{ message.created_at|date:'Y-m-d H:i:s' }}</span>
-                </div>
-                <div style="margin-top: 8px; font-size: 14px;">{{ message.display_for_operator }}</div>
-                {% if message.display_for_operator != message.body_original %}
-                  <div style="margin-top: 8px; color: #666; font-size: 12px;">Original: {{ message.body_original }}</div>
-                {% endif %}
-              </article>
-            {% empty %}
-              <p style="color: #666;">No messages yet.</p>
-            {% endfor %}
-          {% endif %}
-        </div>
-        <form id="support-chat-reply-form" style="padding: 16px; border-top: 1px solid #eee;">
-          <textarea id="support-chat-reply-input" rows="4" placeholder="Type your reply..." style="width: 100%; box-sizing: border-box; border: 1px solid #ddd; border-radius: 10px; padding: 12px; resize: vertical;" {% if not selected_session %}disabled{% endif %}></textarea>
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 12px; gap: 12px;">
-            <div style="display: flex; flex-direction: column; gap: 8px; align-items: flex-start;">
-              <p id="support-chat-admin-error" style="margin: 0; color: #b42318; font-size: 12px;">Press Ctrl/Cmd + Enter to send.</p>
-              <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-                <label for="support-chat-tone" style="font-size: 12px; color: #666;">Draft tone</label>
-                <select id="support-chat-tone" {% if not selected_session or not openclaw_enabled or not openclaw_draft_enabled %}disabled{% endif %}>
-                  <option value="soft_guide">温和导购</option>
-                  <option value="direct_conversion">直接成交</option>
-                  <option value="after_sales">售后客服</option>
-                  <option value="neutral" selected>中性简洁</option>
-                </select>
-                <span id="support-chat-draft-state" style="font-size: 12px; color: #666;">Choose a tone, then generate 中文 or English draft.</span>
-              </div>
-            </div>
-            <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-              <button type="button" class="support-chat-draft-button" data-language="zh-hans" {% if not selected_session or not openclaw_enabled or not openclaw_draft_enabled %}disabled{% endif %}>中文草稿</button>
-              <button type="button" class="support-chat-draft-button" data-language="en" {% if not selected_session or not openclaw_enabled or not openclaw_draft_enabled %}disabled{% endif %}>English Draft</button>
-              <button type="submit" {% if not selected_session %}disabled{% endif %}>Send reply</button>
-            </div>
-          </div>
-        </form>
-      </section>
+    <div class="x-admin-support-status-stack">
+      <div class="x-admin-home-command-box is-cyan">
+        <span>OpenClaw</span>
+        <strong>{% if openclaw_enabled %}Enabled{% else %}Disabled{% endif %}</strong>
+        <small>协作引擎 {{ openclaw_label }}</small>
+      </div>
+      <div class="x-admin-home-command-box is-danger">
+        <span>Auto reply</span>
+        <strong>{% if openclaw_auto_reply_enabled %}On{% else %}Off{% endif %}</strong>
+        <small>自动回复策略状态</small>
+      </div>
+      <div class="x-admin-home-command-box is-violet">
+        <span>Drafts</span>
+        <strong>{% if openclaw_draft_enabled %}Ready{% else %}Off{% endif %}</strong>
+        <small>中英文草稿生成能力</small>
+      </div>
     </div>
+  </section>
+
+  <div class="trade-cockpit-command-metrics x-admin-support-command-grid">
+    <article class="trade-cockpit-command-cell is-gmv">
+      <span>Realtime</span>
+      <strong>{% if realtime_enabled %}WebSocket{% else %}Polling{% endif %}</strong>
+      <small>消息同步模式</small>
+    </article>
+    <article class="trade-cockpit-command-cell is-paid-rate">
+      <span>Conversation Queue</span>
+      <strong>{{ sessions|length }}</strong>
+      <small>当前加载会话数量</small>
+    </article>
+    <article class="trade-cockpit-command-cell is-alerts">
+      <span>Response Mode</span>
+      <strong>Operator Final</strong>
+      <small>AI 协作，人工最终发送</small>
+    </article>
+    <article class="trade-cockpit-command-cell is-net">
+      <span>Current Focus</span>
+      <strong>{% if selected_session %}Session Active{% else %}Pick Session{% endif %}</strong>
+      <small>先处理未读，再推进成交或售后回复</small>
+    </article>
   </div>
-  <script>
-    (function () {
-      const root = document.getElementById('support-chat-admin');
-      if (!root) return;
 
-      const pollInterval = Number(root.dataset.pollInterval || 3000);
-      const sessionsUrl = root.dataset.sessionsUrl;
-      const messagesUrl = root.dataset.messagesUrl;
-      const replyUrl = root.dataset.replyUrl;
-      const draftUrl = root.dataset.draftUrl;
-      const closeUrl = root.dataset.closeUrl;
-      const realtimeEnabled = root.dataset.realtimeEnabled === 'true';
-      const websocketUrl = root.dataset.websocketUrl || '';
-      const sessionList = document.getElementById('support-chat-session-list');
-      const messageList = document.getElementById('support-chat-message-list');
-      const title = document.getElementById('support-chat-current-title');
-      const meta = document.getElementById('support-chat-current-meta');
-      const replyForm = document.getElementById('support-chat-reply-form');
-      const replyInput = document.getElementById('support-chat-reply-input');
-      const errorNode = document.getElementById('support-chat-admin-error');
-      const closeButton = document.getElementById('support-chat-close');
-      const draftButtons = Array.from(document.querySelectorAll('.support-chat-draft-button'));
-      const draftToneSelect = document.getElementById('support-chat-tone');
-      const draftState = document.getElementById('support-chat-draft-state');
-      const submitButton = replyForm.querySelector('button[type="submit"]');
-      const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || document.cookie.split('; ').find(item => item.startsWith('csrftoken='))?.split('=')[1] || '';
-      const draftStoragePrefix = 'support-chat-admin-draft:';
+  <div class="x-admin-two-column x-admin-support-theater">
+    <aside class="module x-admin-flush-panel x-admin-support-session-panel">
+      <div class="x-admin-panel-header x-admin-flush-panel-head">
+        <div class="x-admin-panel-title-group">
+          <h2 class="x-admin-panel-title">会话列表</h2>
+          <p class="x-admin-panel-copy">按最近消息时间排序，优先处理未读与活跃会话。</p>
+        </div>
+      </div>
+      <div id="support-chat-session-list" class="x-admin-session-list">
+        {% for session in sessions %}
+          <button type="button" class="support-chat-session-item x-admin-session-item{% if selected_session and selected_session.id == session.id %} is-active{% endif %}" data-session-id="{{ session.id }}" data-visitor-name="{{ session.visitor_name|default:'匿名访客' }}" data-visitor-email="{{ session.visitor_email }}" data-related-order-no="{{ session.related_order_no }}" data-visitor-language="{{ session.visitor_language }}" data-status="{{ session.status }}">
+            <div class="x-admin-session-topline">
+              <strong>{{ session.visitor_name|default:'匿名访客' }}</strong>
+              <span class="x-admin-session-status{% if session.unread_for_operator %} has-unread{% endif %}">{{ session.status }}</span>
+            </div>
+            <div class="x-admin-session-meta">{{ session.visitor_email|default:session.visitor_language }}{% if session.related_order_no %} · 订单 {{ session.related_order_no }}{% endif %}</div>
+            <div class="x-admin-session-preview">{{ session.messages.last.display_for_operator|default:''|truncatechars:80 }}</div>
+            <div class="x-admin-session-footnote">未读 {{ session.unread_for_operator }}{% if session.last_message_at %} · {{ session.last_message_at|date:'Y-m-d H:i' }}{% endif %}</div>
+          </button>
+        {% empty %}
+          <div class="x-admin-empty x-admin-session-empty">暂无会话。</div>
+        {% endfor %}
+      </div>
+    </aside>
 
-      let selectedSessionId = {{ selected_session.id|default:'null' }};
-      let lastMessageId = {{ selected_session_last_message_id|default:0 }};
-      let isSending = false;
-      let socket = null;
-      let reconnectTimer = null;
-      const draftAvailable = {% if openclaw_enabled and openclaw_draft_enabled %}true{% else %}false{% endif %};
+    <section class="module x-admin-flush-panel x-admin-chat-panel x-admin-support-chat-stage">
+      <div class="x-admin-panel-header x-admin-flush-panel-head">
+        <div class="x-admin-panel-title-group">
+          <div class="x-admin-tactical-tag">Live Conversation / Message Stage</div>
+          <h2 class="x-admin-panel-title" id="support-chat-current-title">{% if selected_session %}{{ selected_session.visitor_name|default:'匿名访客' }}{% else %}请选择会话{% endif %}</h2>
+          <p class="x-admin-panel-copy" id="support-chat-current-meta">{% if selected_session %}{{ selected_session.visitor_email|default:selected_session.visitor_language }}{% if selected_session.related_order_no %} · 订单 {{ selected_session.related_order_no }}{% endif %} · {{ selected_session.status }}{% endif %}</p>
+        </div>
+        <div class="panel-actions">
+          <button type="button" id="support-chat-close" {% if not selected_session %}disabled{% endif %}>关闭会话</button>
+        </div>
+      </div>
+      <div class="x-admin-metric-strip">
+        <div class="x-admin-metric-cell">
+          <span>Realtime</span>
+          <strong>{% if realtime_enabled %}Enabled{% else %}Polling{% endif %}</strong>
+        </div>
+        <div class="x-admin-metric-cell">
+          <span>Draft engine</span>
+          <strong>{% if openclaw_draft_enabled %}Ready{% else %}Offline{% endif %}</strong>
+        </div>
+        <div class="x-admin-metric-cell">
+          <span>Send rule</span>
+          <strong>Operator final</strong>
+        </div>
+      </div>
+      <div id="support-chat-message-list" class="x-admin-message-list x-admin-support-message-list">
+        {% if selected_session %}
+          {% for message in selected_session_messages %}
+            <article class="x-admin-message-card">
+              <div class="x-admin-message-meta">
+                <span>{{ message.sender_type }}</span>
+                <span>{{ message.created_at|date:'Y-m-d H:i:s' }}</span>
+              </div>
+              <div class="x-admin-message-body">{{ message.display_for_operator }}</div>
+              {% if message.display_for_operator != message.body_original %}
+                <div class="x-admin-message-original">原文：{{ message.body_original }}</div>
+              {% endif %}
+            </article>
+          {% empty %}
+            <div class="x-admin-empty">暂无消息。</div>
+          {% endfor %}
+        {% endif %}
+      </div>
+      <form id="support-chat-reply-form" class="x-admin-chat-reply-form">
+        <textarea id="support-chat-reply-input" rows="4" placeholder="输入回复内容..." {% if not selected_session %}disabled{% endif %}></textarea>
+        <div class="x-admin-chat-reply-meta">
+          <div class="x-admin-chat-reply-controls">
+            <p id="support-chat-admin-error" class="x-admin-chat-error">按 Ctrl/Cmd + Enter 发送。</p>
+            <div class="x-admin-chat-tone-row">
+              <label for="support-chat-tone" class="x-admin-chat-tone-label">草稿语气</label>
+              <select id="support-chat-tone" {% if not selected_session or not openclaw_enabled or not openclaw_draft_enabled %}disabled{% endif %}>
+                <option value="soft_guide">温和导购</option>
+                <option value="direct_conversion">直接成交</option>
+                <option value="after_sales">售后客服</option>
+                <option value="neutral" selected>中性简洁</option>
+              </select>
+              <span id="support-chat-draft-state" class="x-admin-chat-draft-state">选择语气后，可生成中文或英文草稿。</span>
+            </div>
+          </div>
+          <div class="x-admin-chat-actions">
+            <button type="button" class="support-chat-draft-button" data-language="zh-hans" {% if not selected_session or not openclaw_enabled or not openclaw_draft_enabled %}disabled{% endif %}>中文草稿</button>
+            <button type="button" class="support-chat-draft-button" data-language="en" {% if not selected_session or not openclaw_enabled or not openclaw_draft_enabled %}disabled{% endif %}>英文草稿</button>
+            <button type="submit" {% if not selected_session %}disabled{% endif %}>发送回复</button>
+          </div>
+        </div>
+      </form>
+    </section>
+  </div>
+</div>
+<script>
+  (function () {
+    const root = document.getElementById('support-chat-admin');
+    if (!root) return;
 
-      function escapeHtml(value) {
-        return String(value || '').replace(/[&<>\"']/g, function (char) {
-          return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char];
-        });
-      }
+    const pollInterval = Number(root.dataset.pollInterval || 3000);
+    const sessionsUrl = root.dataset.sessionsUrl;
+    const messagesUrl = root.dataset.messagesUrl;
+    const replyUrl = root.dataset.replyUrl;
+    const draftUrl = root.dataset.draftUrl;
+    const closeUrl = root.dataset.closeUrl;
+    const realtimeEnabled = root.dataset.realtimeEnabled === 'true';
+    const websocketUrl = root.dataset.websocketUrl || '';
+    const sessionList = document.getElementById('support-chat-session-list');
+    const messageList = document.getElementById('support-chat-message-list');
+    const title = document.getElementById('support-chat-current-title');
+    const meta = document.getElementById('support-chat-current-meta');
+    const replyForm = document.getElementById('support-chat-reply-form');
+    const replyInput = document.getElementById('support-chat-reply-input');
+    const errorNode = document.getElementById('support-chat-admin-error');
+    const closeButton = document.getElementById('support-chat-close');
+    const draftButtons = Array.from(document.querySelectorAll('.support-chat-draft-button'));
+    const draftToneSelect = document.getElementById('support-chat-tone');
+    const draftState = document.getElementById('support-chat-draft-state');
+    const submitButton = replyForm.querySelector('button[type="submit"]');
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || document.cookie.split('; ').find(item => item.startsWith('csrftoken='))?.split('=')[1] || '';
+    const draftStoragePrefix = 'support-chat-admin-draft:';
 
-      function buildSocketUrl(path) {
-        if (!path) return null;
-        if (/^wss?:\/\//.test(path)) return path;
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        return protocol + '//' + window.location.host + path;
-      }
+    let selectedSessionId = {{ selected_session.id|default:'null' }};
+    let lastMessageId = {{ selected_session_last_message_id|default:0 }};
+    let isSending = false;
+    let socket = null;
+    let reconnectTimer = null;
+    const draftAvailable = {% if openclaw_enabled and openclaw_draft_enabled %}true{% else %}false{% endif %};
 
-      function currentDraftKey() {
-        return selectedSessionId ? (draftStoragePrefix + selectedSessionId) : null;
-      }
+    function escapeHtml(value) {
+      return String(value || '').replace(/[&<>\"']/g, function (char) {
+        return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char];
+      });
+    }
 
-      function saveDraft() {
-        const key = currentDraftKey();
-        if (!key) return;
-        try {
-          localStorage.setItem(key, replyInput.value || '');
-        } catch (error) {}
-      }
+    function buildSocketUrl(path) {
+      if (!path) return null;
+      if (/^wss?:\/\//.test(path)) return path;
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      return protocol + '//' + window.location.host + path;
+    }
 
-      function restoreDraft() {
-        const key = currentDraftKey();
-        if (!key) return;
-        try {
-          replyInput.value = localStorage.getItem(key) || '';
-        } catch (error) {}
-      }
+    function currentDraftKey() {
+      return selectedSessionId ? (draftStoragePrefix + selectedSessionId) : null;
+    }
 
-      function clearDraft() {
-        const key = currentDraftKey();
-        if (!key) return;
-        try {
-          localStorage.removeItem(key);
-        } catch (error) {}
-      }
+    function saveDraft() {
+      const key = currentDraftKey();
+      if (!key) return;
+      try { localStorage.setItem(key, replyInput.value || ''); } catch (error) {}
+    }
 
-      function renderMessage(message) {
-        return '<article data-message-id="' + escapeHtml(message.id || '') + '" style="margin-bottom: 14px; padding: 14px; border-radius: 12px; background: #fff; border: 1px solid #eee;">'
-          + '<div style="display:flex;justify-content:space-between;gap:12px;font-size:12px;color:#666;">'
-          + '<span>' + escapeHtml(message.sender_type) + '</span>'
-          + '<span>' + escapeHtml((message.created_at || '').replace('T', ' ').slice(0, 19)) + '</span>'
-          + '</div>'
-          + '<div style="margin-top:8px;font-size:14px;">' + escapeHtml(message.text) + '</div>'
-          + (message.text !== message.original_text ? '<div style="margin-top:8px;color:#666;font-size:12px;">Original: ' + escapeHtml(message.original_text) + '</div>' : '')
-          + '</article>';
-      }
+    function restoreDraft() {
+      const key = currentDraftKey();
+      if (!key) return;
+      try { replyInput.value = localStorage.getItem(key) || ''; } catch (error) {}
+    }
 
-      function appendMessage(message) {
-        if (message.id && messageList.querySelector('[data-message-id="' + String(message.id).replace(/"/g, '\\"') + '"]')) {
-          return;
-        }
-        if (lastMessageId === 0 && !messageList.querySelector('[data-message-id]')) {
-          messageList.innerHTML = '';
-        }
-        messageList.insertAdjacentHTML('beforeend', renderMessage(message));
-        lastMessageId = Math.max(lastMessageId, Number(message.id || 0));
-        messageList.scrollTop = messageList.scrollHeight;
-      }
+    function clearDraft() {
+      const key = currentDraftKey();
+      if (!key) return;
+      try { localStorage.removeItem(key); } catch (error) {}
+    }
 
-      function renderSessionList(sessions) {
-        sessionList.innerHTML = sessions.length ? sessions.map(function (session) {
-          return '<button type="button" class="support-chat-session-item' + (session.id === selectedSessionId ? ' is-active' : '') + '" data-session-id="' + session.id + '" data-visitor-name="' + escapeHtml(session.visitor_name || 'Anonymous visitor') + '" data-visitor-email="' + escapeHtml(session.visitor_email || '') + '" data-related-order-no="' + escapeHtml(session.related_order_no || '') + '" data-visitor-language="' + escapeHtml(session.visitor_language || '') + '" data-status="' + escapeHtml(session.status || '') + '" style="display:block;width:100%;padding:14px 16px;text-align:left;border:0;border-bottom:1px solid #f1f1f1;background:' + (session.id === selectedSessionId ? '#f7f7f7' : '#fff') + ';cursor:pointer;">'
-            + '<div style="display:flex;justify-content:space-between;gap:12px;align-items:start;"><strong>' + escapeHtml(session.visitor_name || 'Anonymous visitor') + '</strong><span style="color:' + (session.unread_for_operator ? '#b42318' : '#666') + ';font-size:12px;">' + escapeHtml(session.status) + '</span></div>'
-            + '<div style="margin-top:6px;font-size:12px;color:#666;">' + escapeHtml(session.visitor_email || session.visitor_language || '') + (session.related_order_no ? ' · 订单 ' + escapeHtml(session.related_order_no) : '') + '</div>'
-            + '<div style="margin-top:6px;font-size:12px;color:#444;line-height:1.5;">' + escapeHtml(session.last_message_preview || '') + '</div>'
-            + '<div style="margin-top:8px;font-size:12px;color:#666;">Unread ' + escapeHtml(session.unread_for_operator) + (session.last_message_at ? ' · ' + escapeHtml(session.last_message_at.replace('T', ' ').slice(0, 16)) : '') + '</div>'
-            + '</button>';
-        }).join('') : '<div style="padding:16px;color:#666;">No conversations yet.</div>';
-      }
+    function renderMessage(message) {
+      return '<article data-message-id="' + escapeHtml(message.id || '') + '" class="x-admin-message-card">'
+        + '<div class="x-admin-message-meta">'
+        + '<span>' + escapeHtml(message.sender_type) + '</span>'
+        + '<span>' + escapeHtml((message.created_at || '').replace('T', ' ').slice(0, 19)) + '</span>'
+        + '</div>'
+        + '<div class="x-admin-message-body">' + escapeHtml(message.text) + '</div>'
+        + (message.text !== message.original_text ? '<div class="x-admin-message-original">原文：' + escapeHtml(message.original_text) + '</div>' : '')
+        + '</article>';
+    }
 
-      function applySessionMeta(session) {
-        title.textContent = session.visitor_name || 'Anonymous visitor';
-        const primaryMeta = session.visitor_email || session.visitor_language;
-        const orderMeta = session.related_order_no ? ('订单 ' + session.related_order_no) : '';
-        meta.textContent = [primaryMeta, orderMeta, session.status].filter(Boolean).join(' · ');
-      }
-
-      function setSendingState(sending) {
-        isSending = sending;
-        submitButton.disabled = sending || !selectedSessionId;
-        replyInput.disabled = sending || !selectedSessionId;
-        closeButton.disabled = !selectedSessionId;
-        if (draftToneSelect) {
-          draftToneSelect.disabled = sending || !selectedSessionId || !draftAvailable;
-        }
-        draftButtons.forEach(function (button) {
-          button.disabled = sending || !selectedSessionId || !draftAvailable;
-        });
-        submitButton.textContent = sending ? 'Sending...' : 'Send reply';
-      }
-
-      async function fetchJson(url, options) {
-        const response = await fetch(url, options);
-        const contentType = response.headers.get('content-type') || '';
-        const data = contentType.includes('application/json') ? await response.json() : null;
-        if (!response.ok) {
-          throw new Error((data && data.error) || (contentType.includes('text/html') ? 'Expected JSON response but received HTML. Please refresh and sign in again.' : 'Request failed'));
-        }
-        if (!data) {
-          throw new Error('Expected JSON response but received HTML. Please refresh and sign in again.');
-        }
-        return data;
-      }
-
-      function connectRealtime() {
-        if (!realtimeEnabled || socket) return;
-        const url = buildSocketUrl(websocketUrl);
-        if (!url) return;
-        socket = new window.WebSocket(url);
-        socket.addEventListener('open', function () {
-          if (selectedSessionId) {
-            socket.send(JSON.stringify({ event: 'chat.subscribe', session_id: selectedSessionId }));
-          }
-        });
-        socket.addEventListener('message', function (event) {
-          try {
-            handleRealtime(JSON.parse(event.data));
-          } catch (error) {}
-        });
-        socket.addEventListener('close', function () {
-          socket = null;
-          if (realtimeEnabled && !reconnectTimer) {
-            reconnectTimer = window.setTimeout(function () {
-              reconnectTimer = null;
-              connectRealtime();
-            }, 2000);
-          }
-        });
-        socket.addEventListener('error', function () {
-          if (socket) socket.close();
-        });
-      }
-
-      function handleRealtime(payload) {
-        if (!payload || !payload.event) return;
-        if (payload.event === 'chat.session.list.changed') {
-          refreshSessions().catch(function () {});
-          if (payload.session && payload.session.id === selectedSessionId) {
-            applySessionMeta(payload.session);
-          }
-        } else if (payload.event === 'chat.message.created') {
-          if (payload.session && payload.session.id === selectedSessionId && payload.message) {
-            appendMessage({
-              id: payload.message.id,
-              sender_type: payload.message.sender_type,
-              text: payload.message.text_for_operator || payload.message.original_text,
-              original_text: payload.message.original_text,
-              created_at: payload.message.created_at,
-            });
-            markRead().catch(function () {});
-          }
-        } else if (payload.event === 'chat.session.updated' && payload.session && payload.session.id === selectedSessionId) {
-          applySessionMeta(payload.session);
-        } else if (payload.event === 'chat.session.closed' && payload.session && payload.session.id === selectedSessionId) {
-          applySessionMeta(payload.session);
-          setSendingState(false);
-          replyInput.disabled = true;
-        }
-      }
-
-      async function refreshSessions() {
-        const data = await fetchJson(sessionsUrl);
-        renderSessionList(data.sessions);
-        const selected = data.sessions.find(function (session) { return session.id === selectedSessionId; });
-        if (selected) {
-          applySessionMeta(selected);
-        } else if (!selectedSessionId && data.sessions[0]) {
-          selectedSessionId = data.sessions[0].id;
-          applySessionMeta(data.sessions[0]);
-          lastMessageId = 0;
-          restoreDraft();
-        }
-      }
-
-      async function refreshMessages() {
-        if (!selectedSessionId) return;
-        const data = await fetchJson(messagesUrl + '?session_id=' + encodeURIComponent(selectedSessionId) + '&after=' + encodeURIComponent(lastMessageId));
-        if (lastMessageId === 0) {
-          messageList.innerHTML = '';
-        }
-        data.messages.forEach(function (message) {
-          appendMessage(message);
-        });
-      }
-
-      async function markRead() {
-        if (!selectedSessionId) return;
-        await fetchJson(messagesUrl + '?session_id=' + encodeURIComponent(selectedSessionId) + '&after=' + encodeURIComponent(lastMessageId));
-        if (socket && socket.readyState === window.WebSocket.OPEN) {
-          socket.send(JSON.stringify({ event: 'chat.mark_read', session_id: selectedSessionId }));
-        }
-      }
-
-      async function selectSession(sessionId, sessionMeta) {
-        selectedSessionId = Number(sessionId);
-        lastMessageId = 0;
+    function appendMessage(message) {
+      if (message.id && messageList.querySelector('[data-message-id="' + String(message.id).replace(/"/g, '\\"') + '"]')) return;
+      if (lastMessageId === 0 && !messageList.querySelector('[data-message-id]')) {
         messageList.innerHTML = '';
-        errorNode.textContent = 'Press Ctrl/Cmd + Enter to send.';
-        applySessionMeta(sessionMeta);
-        setSendingState(false);
-        restoreDraft();
-        if (socket && socket.readyState === window.WebSocket.OPEN) {
-          socket.send(JSON.stringify({ event: 'chat.subscribe', session_id: selectedSessionId }));
-        }
-        await refreshSessions();
-        await refreshMessages();
       }
+      messageList.insertAdjacentHTML('beforeend', renderMessage(message));
+      lastMessageId = Math.max(lastMessageId, Number(message.id || 0));
+      messageList.scrollTop = messageList.scrollHeight;
+    }
 
-      sessionList.addEventListener('click', function (event) {
-        const button = event.target.closest('[data-session-id]');
-        if (!button) return;
-        selectSession(button.dataset.sessionId, {
-          visitor_name: button.dataset.visitorName,
-          visitor_email: button.dataset.visitorEmail,
-          related_order_no: button.dataset.relatedOrderNo,
-          visitor_language: button.dataset.visitorLanguage,
-          status: button.dataset.status,
-        }).catch(function (error) {
-          errorNode.textContent = error.message;
-        });
+    function renderSessionList(sessions) {
+      sessionList.innerHTML = sessions.length ? sessions.map(function (session) {
+        return '<button type="button" class="support-chat-session-item x-admin-session-item' + (session.id === selectedSessionId ? ' is-active' : '') + '" data-session-id="' + session.id + '" data-visitor-name="' + escapeHtml(session.visitor_name || '匿名访客') + '" data-visitor-email="' + escapeHtml(session.visitor_email || '') + '" data-related-order-no="' + escapeHtml(session.related_order_no || '') + '" data-visitor-language="' + escapeHtml(session.visitor_language || '') + '" data-status="' + escapeHtml(session.status || '') + '">'
+          + '<div class="x-admin-session-topline"><strong>' + escapeHtml(session.visitor_name || '匿名访客') + '</strong><span class="x-admin-session-status' + (session.unread_for_operator ? ' has-unread' : '') + '">' + escapeHtml(session.status) + '</span></div>'
+          + '<div class="x-admin-session-meta">' + escapeHtml(session.visitor_email || session.visitor_language || '') + (session.related_order_no ? ' · 订单 ' + escapeHtml(session.related_order_no) : '') + '</div>'
+          + '<div class="x-admin-session-preview">' + escapeHtml(session.last_message_preview || '') + '</div>'
+          + '<div class="x-admin-session-footnote">未读' + escapeHtml(session.unread_for_operator) + (session.last_message_at ? ' · ' + escapeHtml(session.last_message_at.replace('T', ' ').slice(0, 16)) : '') + '</div>'
+          + '</button>';
+      }).join('') : '<div class="x-admin-empty x-admin-session-empty">暂无会话。</div>';
+    }
+
+    function applySessionMeta(session) {
+      title.textContent = session.visitor_name || '匿名访客';
+      const primaryMeta = session.visitor_email || session.visitor_language;
+      const orderMeta = session.related_order_no ? ('订单 ' + session.related_order_no) : '';
+      meta.textContent = [primaryMeta, orderMeta, session.status].filter(Boolean).join(' · ');
+    }
+
+    function setSendingState(sending) {
+      isSending = sending;
+      submitButton.disabled = sending || !selectedSessionId;
+      replyInput.disabled = sending || !selectedSessionId;
+      closeButton.disabled = !selectedSessionId;
+      if (draftToneSelect) draftToneSelect.disabled = sending || !selectedSessionId || !draftAvailable;
+      draftButtons.forEach(function (button) { button.disabled = sending || !selectedSessionId || !draftAvailable; });
+      submitButton.textContent = sending ? '发送中...' : '发送回复';
+    }
+
+    async function fetchJson(url, options) {
+      const response = await fetch(url, options);
+      const contentType = response.headers.get('content-type') || '';
+      const data = contentType.includes('application/json') ? await response.json() : null;
+      if (!response.ok) {
+        throw new Error((data && data.error) || (contentType.includes('text/html') ? 'Expected JSON response but received HTML. Please refresh and sign in again.' : 'Request failed'));
+      }
+      if (!data) throw new Error('Expected JSON response but received HTML. Please refresh and sign in again.');
+      return data;
+    }
+
+    function connectRealtime() {
+      if (!realtimeEnabled || socket) return;
+      const url = buildSocketUrl(websocketUrl);
+      if (!url) return;
+      socket = new window.WebSocket(url);
+      socket.addEventListener('open', function () {
+        if (selectedSessionId) socket.send(JSON.stringify({ event: 'chat.subscribe', session_id: selectedSessionId }));
       });
-
-      replyInput.addEventListener('input', saveDraft);
-      replyInput.addEventListener('keydown', function (event) {
-        if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
-          event.preventDefault();
-          replyForm.requestSubmit();
+      socket.addEventListener('message', function (event) {
+        try { handleRealtime(JSON.parse(event.data)); } catch (error) {}
+      });
+      socket.addEventListener('close', function () {
+        socket = null;
+        if (realtimeEnabled && !reconnectTimer) {
+          reconnectTimer = window.setTimeout(function () { reconnectTimer = null; connectRealtime(); }, 2000);
         }
       });
+      socket.addEventListener('error', function () { if (socket) socket.close(); });
+    }
 
-      replyForm.addEventListener('submit', async function (event) {
+    function handleRealtime(payload) {
+      if (!payload || !payload.event) return;
+      if (payload.event === 'chat.session.list.changed') {
+        refreshSessions().catch(function () {});
+        if (payload.session && payload.session.id === selectedSessionId) applySessionMeta(payload.session);
+      } else if (payload.event === 'chat.message.created') {
+        if (payload.session && payload.session.id === selectedSessionId && payload.message) {
+          appendMessage({
+            id: payload.message.id,
+            sender_type: payload.message.sender_type,
+            text: payload.message.text_for_operator || payload.message.original_text,
+            original_text: payload.message.original_text,
+            created_at: payload.message.created_at,
+          });
+          markRead().catch(function () {});
+        }
+      } else if (payload.event === 'chat.session.updated' && payload.session && payload.session.id === selectedSessionId) {
+        applySessionMeta(payload.session);
+      } else if (payload.event === 'chat.session.closed' && payload.session && payload.session.id === selectedSessionId) {
+        applySessionMeta(payload.session);
+        setSendingState(false);
+        replyInput.disabled = true;
+      }
+    }
+
+    async function refreshSessions() {
+      const data = await fetchJson(sessionsUrl);
+      renderSessionList(data.sessions);
+      const selected = data.sessions.find(function (session) { return session.id === selectedSessionId; });
+      if (selected) {
+        applySessionMeta(selected);
+      } else if (!selectedSessionId && data.sessions[0]) {
+        selectedSessionId = data.sessions[0].id;
+        applySessionMeta(data.sessions[0]);
+        lastMessageId = 0;
+        restoreDraft();
+      }
+    }
+
+    async function refreshMessages() {
+      if (!selectedSessionId) return;
+      const data = await fetchJson(messagesUrl + '?session_id=' + encodeURIComponent(selectedSessionId) + '&after=' + encodeURIComponent(lastMessageId));
+      if (lastMessageId === 0) messageList.innerHTML = '';
+      data.messages.forEach(function (message) { appendMessage(message); });
+    }
+
+    async function markRead() {
+      if (!selectedSessionId) return;
+      await fetchJson(messagesUrl + '?session_id=' + encodeURIComponent(selectedSessionId) + '&after=' + encodeURIComponent(lastMessageId));
+      if (socket && socket.readyState === window.WebSocket.OPEN) socket.send(JSON.stringify({ event: 'chat.mark_read', session_id: selectedSessionId }));
+    }
+
+    async function selectSession(sessionId, sessionMeta) {
+      selectedSessionId = Number(sessionId);
+      lastMessageId = 0;
+      messageList.innerHTML = '';
+      errorNode.textContent = '按 Ctrl/Cmd + Enter 发送。';
+      applySessionMeta(sessionMeta);
+      setSendingState(false);
+      restoreDraft();
+      if (socket && socket.readyState === window.WebSocket.OPEN) socket.send(JSON.stringify({ event: 'chat.subscribe', session_id: selectedSessionId }));
+      await refreshSessions();
+      await refreshMessages();
+    }
+
+    sessionList.addEventListener('click', function (event) {
+      const button = event.target.closest('[data-session-id]');
+      if (!button) return;
+      selectSession(button.dataset.sessionId, {
+        visitor_name: button.dataset.visitorName,
+        visitor_email: button.dataset.visitorEmail,
+        related_order_no: button.dataset.relatedOrderNo,
+        visitor_language: button.dataset.visitorLanguage,
+        status: button.dataset.status,
+      }).catch(function (error) { errorNode.textContent = error.message; });
+    });
+
+    replyInput.addEventListener('input', saveDraft);
+    replyInput.addEventListener('keydown', function (event) {
+      if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
         event.preventDefault();
-        if (!selectedSessionId || isSending) return;
-        const text = replyInput.value.trim();
-        if (!text) return;
+        replyForm.requestSubmit();
+      }
+    });
+
+    replyForm.addEventListener('submit', async function (event) {
+      event.preventDefault();
+      if (!selectedSessionId || isSending) return;
+      const text = replyInput.value.trim();
+      if (!text) return;
+      errorNode.textContent = '';
+      setSendingState(true);
+      try {
+        const data = await fetchJson(replyUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+          body: JSON.stringify({ session_id: selectedSessionId, text: text }),
+        });
+        appendMessage(data.message);
+        replyInput.value = '';
+        clearDraft();
+        replyInput.focus();
+        await refreshSessions();
+      } catch (error) {
+        errorNode.textContent = error.message;
+      } finally {
+        setSendingState(false);
+      }
+    });
+
+    draftButtons.forEach(function (draftButton) {
+      draftButton.addEventListener('click', async function () {
+        if (!selectedSessionId || isSending || !draftAvailable) return;
         errorNode.textContent = '';
         setSendingState(true);
+        const previousLabel = draftButton.textContent;
+        const language = draftButton.dataset.language;
+        const tone = draftToneSelect ? draftToneSelect.value : 'neutral';
+        draftButton.textContent = '生成中...';
+        if (draftState) draftState.textContent = '正在生成' + (language === 'en' ? '英文' : '中文') + '草稿 · ' + tone;
         try {
-          const data = await fetchJson(replyUrl, {
+          const data = await fetchJson(draftUrl, {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-CSRFToken': csrfToken,
-            },
-            body: JSON.stringify({ session_id: selectedSessionId, text: text }),
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+            body: JSON.stringify({ session_id: selectedSessionId, language: language, tone: tone }),
           });
-          appendMessage(data.message);
-          replyInput.value = '';
-          clearDraft();
+          replyInput.value = data.draft;
+          saveDraft();
           replyInput.focus();
-          await refreshSessions();
+          if (draftState) draftState.textContent = '已载入' + (data.language === 'en' ? '英文' : '中文') + '草稿 · ' + data.tone;
         } catch (error) {
           errorNode.textContent = error.message;
         } finally {
+          draftButton.textContent = previousLabel;
           setSendingState(false);
         }
       });
+    });
 
-      draftButtons.forEach(function (draftButton) {
-        draftButton.addEventListener('click', async function () {
-          if (!selectedSessionId || isSending || !draftAvailable) return;
-          errorNode.textContent = '';
-          setSendingState(true);
-          const previousLabel = draftButton.textContent;
-          const language = draftButton.dataset.language;
-          const tone = draftToneSelect ? draftToneSelect.value : 'neutral';
-          draftButton.textContent = 'Generating...';
-          if (draftState) {
-            draftState.textContent = 'Generating ' + (language === 'en' ? 'English' : '中文') + ' draft · ' + tone;
-          }
-          try {
-            const data = await fetchJson(draftUrl, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': csrfToken,
-              },
-              body: JSON.stringify({ session_id: selectedSessionId, language: language, tone: tone }),
-            });
-            replyInput.value = data.draft;
-            saveDraft();
-            replyInput.focus();
-            if (draftState) {
-              draftState.textContent = 'Loaded ' + (data.language === 'en' ? 'English' : '中文') + ' draft · ' + data.tone;
-            }
-          } catch (error) {
-            errorNode.textContent = error.message;
-          } finally {
-            draftButton.textContent = previousLabel;
-            setSendingState(false);
-          }
+    closeButton.addEventListener('click', async function () {
+      if (!selectedSessionId) return;
+      try {
+        const data = await fetchJson(closeUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+          body: JSON.stringify({ session_id: selectedSessionId }),
         });
-      });
-
-      closeButton.addEventListener('click', async function () {
-        if (!selectedSessionId) return;
-        try {
-          const data = await fetchJson(closeUrl, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-CSRFToken': csrfToken,
-            },
-            body: JSON.stringify({ session_id: selectedSessionId }),
-          });
-          applySessionMeta(data.session);
-          await refreshSessions();
-        } catch (error) {
-          errorNode.textContent = error.message;
-        }
-      });
-
-      setSendingState(false);
-      connectRealtime();
-      refreshSessions().then(function () {
-        if (selectedSessionId && socket && socket.readyState === window.WebSocket.OPEN) {
-          socket.send(JSON.stringify({ event: 'chat.subscribe', session_id: selectedSessionId }));
-        }
-        return refreshMessages();
-      }).catch(function (error) {
+        applySessionMeta(data.session);
+        await refreshSessions();
+      } catch (error) {
         errorNode.textContent = error.message;
-      });
-      window.setInterval(function () {
-        refreshSessions().then(refreshMessages).catch(function () {});
-      }, realtimeEnabled ? Math.max(pollInterval, 30000) : pollInterval);
-    })();
-  </script>
+      }
+    });
+
+    setSendingState(false);
+    connectRealtime();
+    refreshSessions().then(function () {
+      if (selectedSessionId && socket && socket.readyState === window.WebSocket.OPEN) {
+        socket.send(JSON.stringify({ event: 'chat.subscribe', session_id: selectedSessionId }));
+      }
+      return refreshMessages();
+    }).catch(function (error) {
+      errorNode.textContent = error.message;
+    });
+    window.setInterval(function () {
+      refreshSessions().then(refreshMessages).catch(function () {});
+    }, realtimeEnabled ? Math.max(pollInterval, 30000) : pollInterval);
+  })();
+</script>
 {% endblock %}

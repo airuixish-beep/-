@@ -178,8 +178,29 @@ class QuizDashboardViewTests(TestCase):
         self.assertContains(response, "五行测试提交统计")
         self.assertContains(response, "测试提交数")
         self.assertContains(response, "主导结果分布")
-        self.assertContains(response, "来源归因")
+
+    def test_staff_user_can_access_traffic_hub(self):
+        self.client.force_login(self.staff_user)
+
+        response = self.client.get(reverse("analytics_dashboard:traffic"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "流量中枢")
+        self.assertContains(response, "提交流量态势主屏")
+        self.assertContains(response, "终端行动区")
+        self.assertContains(response, "五行测试")
+        self.assertContains(response, "来源 / 介质 / 活动主视图")
+        self.assertContains(response, "Source")
+        self.assertContains(response, "Medium")
+        self.assertContains(response, "Campaign")
+        self.assertContains(response, "高频留资邮箱")
+        self.assertContains(response, "最近提交流转")
+        self.assertContains(response, "主导结果热区")
+        self.assertContains(response, "转化分流")
+        self.assertContains(response, "终端行动区")
+        self.assertContains(response, "每日提交 / 留资节奏")
         self.assertContains(response, "查看对应提交")
+        self.assertContains(response, "全部提交")
 
 
 class AnalyticsDashboardServiceTests(TestCase):

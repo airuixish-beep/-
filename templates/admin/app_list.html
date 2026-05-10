@@ -1,0 +1,43 @@
+{% load i18n %}
+
+{% if app_list %}
+  <div class="x-admin-system-app-grid">
+    {% for app in app_list %}
+      <section class="module x-admin-system-app-card app-{{ app.app_label }}{% if app.app_url in request.path|urlencode %} current-app{% endif %}">
+        <div class="x-admin-panel-header">
+          <div class="x-admin-panel-title-group">
+            <div class="x-admin-tactical-tag">System Module / {{ app.app_label|upper }}</div>
+            <h3 class="x-admin-panel-title"><a href="{{ app.app_url }}" class="section" title="{% blocktranslate with name=app.name %}Models in the {{ name }} application{% endblocktranslate %}">{{ app.name }}</a></h3>
+          </div>
+        </div>
+        <div class="x-admin-system-model-list">
+          {% for model in app.models %}
+            <article class="x-admin-system-model-card model-{{ model.object_name|lower }}{% if model.admin_url in request.path|urlencode %} current-model{% endif %}">
+              <div class="x-admin-system-model-copy">
+                {% if model.admin_url %}
+                  <strong><a href="{{ model.admin_url }}"{% if model.admin_url in request.path|urlencode %} aria-current="page"{% endif %}>{{ model.name }}</a></strong>
+                {% else %}
+                  <strong>{{ model.name }}</strong>
+                {% endif %}
+              </div>
+              <div class="x-admin-system-model-actions">
+                {% if model.add_url %}
+                  <a href="{{ model.add_url }}" class="addlink">{% translate 'Add' %}</a>
+                {% endif %}
+                {% if model.admin_url and show_changelinks %}
+                  {% if model.view_only %}
+                    <a href="{{ model.admin_url }}" class="viewlink">{% translate 'View' %}</a>
+                  {% else %}
+                    <a href="{{ model.admin_url }}" class="changelink">{% translate 'Change' %}</a>
+                  {% endif %}
+                {% endif %}
+              </div>
+            </article>
+          {% endfor %}
+        </div>
+      </section>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="x-admin-empty">{% translate 'You don’t have permission to view or edit anything.' %}</div>
+{% endif %}

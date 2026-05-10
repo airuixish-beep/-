@@ -182,6 +182,18 @@ class RecommendationViewTests(TestCase):
         self.assertTrue(response.context["has_filters"])
         self.assertEqual(response.context["recommended_products"], [])
 
+    def test_product_list_renders_mobile_filter_summary(self):
+        fragrance = Category.objects.create(name="Fragrance", slug="fragrance", is_active=True)
+        self.create_product("Filtered Product", category=fragrance, is_featured=True, stock_quantity=5, is_purchasable=True)
+
+        response = self.client.get(reverse("products:list"), {"category": fragrance.slug, "featured": "1"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "筛选")
+        self.assertContains(response, "Fragrance · 精选")
+        self.assertContains(response, "关闭")
+        self.assertContains(response, "查看 1 件商品")
+
     def test_product_detail_context_includes_related_products(self):
         product = self.create_product("Current Product")
         related = self.create_product("Related Product", is_featured=True)

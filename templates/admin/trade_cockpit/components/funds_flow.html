@@ -1,0 +1,62 @@
+<section class="module x-admin-flow-panel">
+  <div class="x-admin-tactical-tag">Tactical Stream / Funds</div>
+  <div class="x-admin-panel-header">
+    <div class="x-admin-panel-title-group">
+      <h2 class="x-admin-panel-title">资金流监控</h2>
+      <p class="x-admin-panel-copy">把入账、退款、手续费与账务流水压成链路监控面板。</p>
+    </div>
+  </div>
+  <div class="x-admin-funds-grid">
+    <div class="x-admin-funds-column is-inbound">
+      <article class="x-admin-funds-node">
+        <span>客户支付</span>
+        <strong>{{ funds_flow.capture_amount }}</strong>
+      </article>
+      <article class="x-admin-funds-node">
+        <span>退款支出</span>
+        <strong>{{ funds_flow.refund_amount }}</strong>
+      </article>
+      <article class="x-admin-funds-node">
+        <span>账务流水</span>
+        <strong>{{ funds_flow.ledger_transactions_count }}</strong>
+      </article>
+    </div>
+    <div class="x-admin-funds-hub">
+      <span>平台账本</span>
+      <strong>{{ funds_flow.net_amount }}</strong>
+      <small>净资金</small>
+    </div>
+    <div class="x-admin-funds-column is-outbound">
+      <article class="x-admin-funds-node is-accent">
+        <span>手续费</span>
+        <strong>{{ funds_flow.fee_amount }}</strong>
+      </article>
+      <article class="x-admin-funds-node is-accent">
+        <span>平台净额</span>
+        <strong>{{ funds_flow.net_amount }}</strong>
+      </article>
+    </div>
+  </div>
+  <div class="x-admin-funds-flowline" aria-hidden="true">
+    <span class="x-admin-funds-flow-curve is-cyan"></span>
+    <span class="x-admin-funds-flow-curve is-cyan-secondary"></span>
+    <span class="x-admin-funds-flow-curve is-red"></span>
+    <span class="x-admin-funds-flow-curve is-red-secondary"></span>
+  </div>
+  <div class="subsection">
+    <h3>最近账务流水</h3>
+    <div class="x-admin-status-list x-admin-ledger-rail">
+      {% for item in funds_flow.recent_ledger_transactions %}
+        <article class="summary-card x-admin-ledger-item">
+          <div class="status-meta">
+            <strong>{{ item.reference_no }}</strong>
+            <span>{{ item.kind }}</span>
+          </div>
+          <div class="x-admin-field-note">{{ item.currency }} {{ item.gross_amount }} / net {{ item.net_amount }}</div>
+        </article>
+      {% empty %}
+        <div class="x-admin-empty">暂无账务流水。</div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
