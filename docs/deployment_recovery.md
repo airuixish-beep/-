@@ -17,7 +17,14 @@
 bash deploy/one-click-server.sh
 ```
 
-或：
+这是当前推荐主入口：
+- 不需要提供域名、证书、数据库密码或 root 密码
+- 自动生成 `.env.server`
+- 自动生成 `SECRET_KEY`、`DB_PASSWORD`、`MYSQL_ROOT_PASSWORD`
+- 自动识别可用主机地址与端口
+- 自动执行 `bootstrap-server`，把管理员和演示数据一起初始化
+
+也可以手动执行：
 
 ```bash
 bash deploy/auto-deploy.sh deploy-server

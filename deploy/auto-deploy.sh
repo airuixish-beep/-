@@ -71,8 +71,10 @@ ensure_env() {
       example_file="$PROJECT_DIR/.env.production.example"
     elif is_local_deploy && [ -f "$PROJECT_DIR/.env.local.example" ]; then
       example_file="$PROJECT_DIR/.env.local.example"
-    elif is_server_deploy && [ -f "$PROJECT_DIR/.env.server.example" ]; then
-      example_file="$PROJECT_DIR/.env.server.example"
+    elif is_server_deploy; then
+      ENV_FILE="$ENV_FILE" bash "$PROJECT_DIR/deploy/one-click-server.sh" prepare >/dev/null
+      echo "已自动生成 ${ENV_FILE##*/} 并继续执行 server 部署。"
+      return 0
     fi
     cp "$example_file" "$ENV_FILE"
     echo "已从 ${example_file##*/} 生成 ${ENV_FILE##*/}，请先填入真实部署配置。"

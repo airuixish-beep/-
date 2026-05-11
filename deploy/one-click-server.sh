@@ -6,16 +6,13 @@ cd "$PROJECT_DIR"
 
 MODE="${1:-deploy}"
 ENV_FILE="${ENV_FILE:-$PROJECT_DIR/.env.server}"
+ENV_WAS_CREATED=false
 
 require_command() {
   command -v "$1" >/dev/null 2>&1 || {
     echo "缺少命令: $1"
     exit 1
   }
-}
-
-is_interactive() {
-  [ -t 0 ]
 }
 
 normalize_host() {
@@ -59,6 +56,13 @@ generate_secret_key() {
   python3 - <<'PY'
 import secrets
 print(secrets.token_urlsafe(50))
+PY
+}
+
+generate_password() {
+  python3 - <<'PY'
+import secrets
+print(secrets.token_urlsafe(24))
 PY
 }
 
@@ -112,55 +116,186 @@ placeholder_or_empty() {
   esac
 }
 
-prompt_value() {
-  local label="$1"
-  local current="${2:-}"
-  local secret="${3:-false}"
-  local value=""
+is_placeholder_host() {
+  [ "${1:-}" = "auto-detect-host" ]
+}
 
-  if ! is_interactive; then
-    echo "$current"
+is_loopback_host() {
+  python3 - "$1" <<'PY'
+import ipaddress
+import sys
+value = sys.argv[1].strip().lower()
+if not value:
+    raise SystemExit(1)
+if value == 'localhost':
+    raise SystemExit(0)
+try:
+    ip = ipaddress.ip_address(value)
+except ValueError:
+    raise SystemExit(1)
+raise SystemExit(0 if ip.is_loopback else 1)
+PY
+}
+
+first_list_value() {
+  python3 - "$1" <<'PY'
+import sys
+values = [part.strip() for part in sys.argv[1].split(',') if part.strip()]
+if values:
+    print(values[0])
+PY
+}
+
+build_allowed_hosts() {
+  python3 - "$1" <<'PY'
+import sys
+host = sys.argv[1].strip()
+values = []
+for candidate in [host, '127.0.0.1', 'localhost']:
+    if candidate and candidate not in values:
+        values.append(candidate)
+print(','.join(values))
+PY
+}
+
+build_trusted_origins() {
+  python3 - "$1" "$2" <<'PY'
+import sys
+host = sys.argv[1].strip()
+port = sys.argv[2].strip()
+values = []
+for candidate in [host, '127.0.0.1', 'localhost']:
+    if not candidate:
+        continue
+    if port == '80':
+        origin = f'http://{candidate}'
+    else:
+        origin = f'http://{candidate}:{port}'
+    if origin not in values:
+        values.append(origin)
+print(','.join(values))
+PY
+}
+
+port_is_free() {
+  python3 - "$1" <<'PY'
+import socket
+import sys
+port = int(sys.argv[1])
+sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+try:
+    sock.bind(('0.0.0.0', port))
+except OSError:
+    raise SystemExit(1)
+else:
+    sock.close()
+    raise SystemExit(0)
+PY
+}
+
+detect_machine_ip() {
+  python3 - <<'PY'
+import socket
+candidates = []
+try:
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.connect(('8.8.8.8', 80))
+    ip = sock.getsockname()[0]
+    if ip and not ip.startswith('127.'):
+        candidates.append(ip)
+    sock.close()
+except OSError:
+    pass
+try:
+    hostname = socket.gethostname()
+    ip = socket.gethostbyname(hostname)
+    if ip and not ip.startswith('127.') and ip not in candidates:
+        candidates.append(ip)
+except OSError:
+    pass
+if candidates:
+    print(candidates[0])
+PY
+}
+
+detect_server_host() {
+  local server_host="${SERVER_HOST:-}"
+  if [ -n "$server_host" ]; then
+    normalize_host "$server_host"
     return 0
   fi
 
-  if [ "$secret" = "true" ]; then
-    if [ -n "$current" ]; then
-      printf "%s [已设置，回车保留]: " "$label" >&2
-    else
-      printf "%s: " "$label" >&2
-    fi
-    read -r -s value
-    printf '\n' >&2
-    if [ -z "$value" ]; then
-      value="$current"
-    fi
-  else
-    if [ -n "$current" ]; then
-      printf "%s [%s]: " "$label" "$current" >&2
-    else
-      printf "%s: " "$label" >&2
-    fi
-    read -r value
-    if [ -z "$value" ]; then
-      value="$current"
+  local existing_site_url=""
+  existing_site_url=$(get_env_value SITE_URL)
+  if [ "$ENV_WAS_CREATED" = "false" ] && [ -n "$existing_site_url" ]; then
+    local existing_host=""
+    existing_host=$(normalize_host "$existing_site_url")
+    if [ -n "$existing_host" ] && ! is_loopback_host "$existing_host" && ! is_placeholder_host "$existing_host"; then
+      printf '%s' "$existing_host"
+      return 0
     fi
   fi
 
-  echo "$value"
+  local existing_allowed_hosts=""
+  existing_allowed_hosts=$(get_env_value ALLOWED_HOSTS)
+  if [ "$ENV_WAS_CREATED" = "false" ] && [ -n "$existing_allowed_hosts" ]; then
+    local first_host=""
+    first_host=$(first_list_value "$existing_allowed_hosts")
+    if [ -n "$first_host" ] && ! is_loopback_host "$first_host" && ! is_placeholder_host "$first_host"; then
+      printf '%s' "$first_host"
+      return 0
+    fi
+  fi
+
+  local machine_ip=""
+  machine_ip=$(detect_machine_ip)
+  if [ -n "$machine_ip" ]; then
+    printf '%s' "$machine_ip"
+    return 0
+  fi
+
+  if [ -n "$existing_site_url" ]; then
+    local fallback_host=""
+    fallback_host=$(normalize_host "$existing_site_url")
+    if [ -n "$fallback_host" ]; then
+      printf '%s' "$fallback_host"
+      return 0
+    fi
+  fi
+
+  printf '127.0.0.1'
 }
 
-require_value() {
-  local key="$1"
-  local value="$2"
-  if [ -z "$value" ]; then
-    echo "$key 未提供，无法继续。"
-    exit 1
+detect_web_port() {
+  local explicit_port="${WEB_PORT_OVERRIDE:-${WEB_PORT:-}}"
+  if [ -n "$explicit_port" ]; then
+    normalize_port "$explicit_port"
+    return 0
   fi
+
+  local existing_port=""
+  existing_port=$(get_env_value WEB_PORT)
+  if [ "$ENV_WAS_CREATED" = "false" ] && [ -n "$existing_port" ]; then
+    normalize_port "$existing_port"
+    return 0
+  fi
+
+  local candidate
+  for candidate in 8000 8080 8888 18000; do
+    if port_is_free "$candidate"; then
+      printf '%s' "$candidate"
+      return 0
+    fi
+  done
+
+  printf '8000'
 }
 
 ensure_env_file() {
   if [ ! -f "$ENV_FILE" ]; then
     cp "$PROJECT_DIR/.env.server.example" "$ENV_FILE"
+    ENV_WAS_CREATED=true
   fi
 }
 
@@ -169,38 +304,18 @@ prepare_env() {
   ensure_env_file
   backup_env_file
 
-  local existing_site_url existing_web_port
-  existing_site_url=$(get_env_value SITE_URL)
-  existing_web_port=$(get_env_value WEB_PORT)
-
-  local server_host="${SERVER_HOST:-}"
-  if [ -z "$server_host" ] && [ -n "$existing_site_url" ]; then
-    server_host=$(normalize_host "$existing_site_url")
-  fi
-  server_host=$(prompt_value "服务器 IP 或主机名" "$server_host")
-  server_host=$(normalize_host "$server_host")
+  local server_host web_port site_url allowed_hosts csrf_trusted_origins
+  server_host=$(detect_server_host)
   require_value "服务器 IP 或主机名" "$server_host"
 
-  local web_port="${WEB_PORT_OVERRIDE:-${WEB_PORT:-$existing_web_port}}"
-  web_port=$(prompt_value "对外端口" "${web_port:-8000}")
-  web_port=$(normalize_port "$web_port")
+  web_port=$(detect_web_port)
   require_value "对外端口" "$web_port"
 
-  local site_url
   site_url=$(build_origin "$server_host" "$web_port")
-
-  local allowed_hosts="${ALLOWED_HOSTS_OVERRIDE:-$server_host}"
-  if is_interactive; then
-    allowed_hosts=$(prompt_value "ALLOWED_HOSTS" "$allowed_hosts")
-  fi
-  require_value "ALLOWED_HOSTS" "$allowed_hosts"
-
-  local csrf_trusted_origins
-  csrf_trusted_origins="${CSRF_TRUSTED_ORIGINS_OVERRIDE:-$(build_origin "$server_host" "$web_port")}"
-  if is_interactive; then
-    csrf_trusted_origins=$(prompt_value "CSRF_TRUSTED_ORIGINS" "$csrf_trusted_origins")
-  fi
-  require_value "CSRF_TRUSTED_ORIGINS" "$csrf_trusted_origins"
+  allowed_hosts="${ALLOWED_HOSTS_OVERRIDE:-$(build_allowed_hosts "$server_host") }"
+  allowed_hosts="${allowed_hosts% }"
+  csrf_trusted_origins="${CSRF_TRUSTED_ORIGINS_OVERRIDE:-$(build_trusted_origins "$server_host" "$web_port") }"
+  csrf_trusted_origins="${csrf_trusted_origins% }"
 
   local secret_key
   secret_key=$(get_env_value SECRET_KEY)
@@ -214,27 +329,18 @@ prepare_env() {
   db_password="${DB_PASSWORD:-$(get_env_value DB_PASSWORD)}"
   mysql_root_password="${MYSQL_ROOT_PASSWORD:-$(get_env_value MYSQL_ROOT_PASSWORD)}"
 
-  db_name=$(prompt_value "MySQL 数据库名" "${db_name:-xuanor}")
-  db_user=$(prompt_value "MySQL 用户名" "${db_user:-xuanor}")
+  db_name="${db_name:-xuanor}"
+  db_user="${db_user:-xuanor}"
   if placeholder_or_empty "$db_password"; then
-    db_password=""
+    db_password=$(generate_password)
   fi
   if placeholder_or_empty "$mysql_root_password"; then
-    mysql_root_password=""
+    mysql_root_password=$(generate_password)
   fi
-  db_password=$(prompt_value "MySQL 用户密码" "$db_password" true)
-  mysql_root_password=$(prompt_value "MySQL root 密码" "$mysql_root_password" true)
-  require_value "DB_NAME" "$db_name"
-  require_value "DB_USER" "$db_user"
-  require_value "DB_PASSWORD" "$db_password"
-  require_value "MYSQL_ROOT_PASSWORD" "$mysql_root_password"
 
   local realtime_enabled="${CHAT_REALTIME_ENABLED:-$(get_env_value CHAT_REALTIME_ENABLED)}"
   if [ -z "$realtime_enabled" ]; then
     realtime_enabled="False"
-  fi
-  if is_interactive; then
-    realtime_enabled=$(prompt_value "开启实时聊天 (True/False)" "$realtime_enabled")
   fi
   case "$realtime_enabled" in
     True|true|1|yes|on)
@@ -247,6 +353,7 @@ prepare_env() {
 
   set_env_value DEPLOY_ENV server
   set_env_value DEBUG False
+  set_env_value TRUST_PROXY_HEADERS False
   set_env_value SECRET_KEY "$secret_key"
   set_env_value ALLOWED_HOSTS "$allowed_hosts"
   set_env_value CSRF_TRUSTED_ORIGINS "$csrf_trusted_origins"
@@ -279,20 +386,30 @@ prepare_env() {
   fi
 }
 
+require_value() {
+  local key="$1"
+  local value="$2"
+  if [ -z "$value" ]; then
+    echo "$key 未提供，无法继续。"
+    exit 1
+  fi
+}
+
 run_deploy() {
   ENV_FILE="$ENV_FILE" bash "$PROJECT_DIR/deploy/auto-deploy.sh" check-server
-  ENV_FILE="$ENV_FILE" bash "$PROJECT_DIR/deploy/auto-deploy.sh" deploy-server
+  ENV_FILE="$ENV_FILE" bash "$PROJECT_DIR/deploy/auto-deploy.sh" bootstrap-server
   ENV_FILE="$ENV_FILE" bash "$PROJECT_DIR/deploy/auto-deploy.sh" status
 }
 
 print_summary() {
   echo "一键直连部署脚本执行完成。"
   echo "ENV_FILE: $ENV_FILE"
+  echo "访问地址: $(get_env_value SITE_URL)/"
 }
 
 usage() {
   echo "用法: bash deploy/one-click-server.sh [prepare|deploy]"
-  echo "默认 deploy：准备 .env.server 后执行 check-server + deploy-server + status"
+  echo "默认 deploy：零输入生成 .env.server 后执行 check-server + bootstrap-server + status"
 }
 
 require_command bash
