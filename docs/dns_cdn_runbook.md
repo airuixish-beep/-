@@ -1,15 +1,20 @@
 # Xuanor DNS / CDN 排查 Runbook
 
 ## 目标
-恢复 `https://www.xuanor.com` 和后台 `https://www.xuanor.com/admin/` 的公网可访问性。
+恢复反代生产模式下的 `https://www.xuanor.com` / `https://www.xuanor.com/admin/` 公网访问，或确认 server 直连模式的端口可达性。
 
 ## 已知现象
 - 外部探测时，`www.xuanor.com` 解析到 `198.18.11.199`
 - HTTPS 握手失败
 - 后台与首页均无法从公网正常访问
 
-## 一次只做一层排查
-顺序不要乱：
+## 先确认你走的是哪条链路
+
+### 如果你走 `deploy-server` / `one-click-server.sh`
+这份 Runbook 只需要参考“源站可用性”和“应用层后台”两部分；DNS / CDN / 证书都不是前置条件。
+
+### 如果你走 `deploy` 反代生产模式
+按下面顺序排查，不要乱：
 
 1. DNS 记录
 2. CDN / 代理
@@ -68,26 +73,30 @@ nslookup www.xuanor.com
 ---
 
 ## 3. 源站检查
-如果你有服务器权限，在服务器执行：
+### server 直连模式
+如果你走 `deploy-server`，在服务器执行：
+
+```bash
+ss -lntp | grep ':8000'
+curl -I http://127.0.0.1:8000/healthz/live
+ENV_FILE=.env.server bash deploy/auto-deploy.sh status
+ENV_FILE=.env.server bash deploy/auto-deploy.sh logs
+```
+
+### 反代生产模式
+如果你走 `deploy`，在服务器执行：
 
 ```bash
 ss -lntp | grep -E ':80|:443'
 curl -I http://127.0.0.1
 curl -Ik https://127.0.0.1
-```
-
-### 正常预期
-- 80 和 443 至少有一个在监听
-- 本机请求能拿到 Nginx / 站点响应
-- `https://www.xuanor.com/healthz/live` 与后台登录页能正常返回
-
-### 如果是 Docker 部署
-优先使用项目脚本，避免因为 env / profile 不一致看错状态：
-
-```bash
 bash deploy/auto-deploy.sh status
 bash deploy/auto-deploy.sh logs
 ```
+
+### 正常预期
+- server 模式下，`WEB_PORT` 在监听且本机请求能拿到 Django 响应
+- prod 模式下，80 / 443 至少有一个在监听，且本机请求能拿到 Nginx / 站点响应
 
 ---
 
@@ -119,7 +128,19 @@ nginx -t
 ---
 
 ## 5. 应用层检查
-当 1-4 都正常后，再看 Django 后台：
+### server 直连模式
+
+```bash
+curl -I http://<服务器IP>:<WEB_PORT>/admin/
+```
+
+重点核对：
+- `ALLOWED_HOSTS=<服务器IP或主机名>`
+- `CSRF_TRUSTED_ORIGINS=http://<服务器IP或主机名>:<WEB_PORT>`
+- `SITE_URL=http://<服务器IP或主机名>:<WEB_PORT>`
+- `USE_X_FORWARDED_HOST=False`
+
+### 反代生产模式
 
 ```bash
 curl -I https://www.xuanor.com/admin/

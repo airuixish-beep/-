@@ -18,8 +18,10 @@ check_docker() {
 
 ensure_env_file_path() {
   if [ -z "$ENV_FILE" ]; then
-    if [ "${DEPLOY_ENV:-prod}" = "local" ]; then
+    if is_local_deploy; then
       ENV_FILE="$PROJECT_DIR/.env.local"
+    elif is_server_deploy; then
+      ENV_FILE="${ENV_FILE:-$PROJECT_DIR/.env.server}"
     else
       ENV_FILE="$PROJECT_DIR/.env"
     fi
@@ -46,13 +48,31 @@ tls_enabled() {
   is_true "${TLS_ENABLED:-False}"
 }
 
+deploy_env() {
+  printf '%s' "${DEPLOY_ENV:-prod}"
+}
+
+is_prod_deploy() {
+  [ "$(deploy_env)" = "prod" ]
+}
+
+is_local_deploy() {
+  [ "$(deploy_env)" = "local" ]
+}
+
+is_server_deploy() {
+  [ "$(deploy_env)" = "server" ]
+}
+
 ensure_env() {
   if [ ! -f "$ENV_FILE" ]; then
     local example_file="$PROJECT_DIR/.env.example"
-    if [ "${DEPLOY_ENV:-prod}" = "prod" ] && [ -f "$PROJECT_DIR/.env.production.example" ]; then
+    if is_prod_deploy && [ -f "$PROJECT_DIR/.env.production.example" ]; then
       example_file="$PROJECT_DIR/.env.production.example"
-    elif [ "${DEPLOY_ENV:-prod}" = "local" ] && [ -f "$PROJECT_DIR/.env.local.example" ]; then
+    elif is_local_deploy && [ -f "$PROJECT_DIR/.env.local.example" ]; then
       example_file="$PROJECT_DIR/.env.local.example"
+    elif is_server_deploy && [ -f "$PROJECT_DIR/.env.server.example" ]; then
+      example_file="$PROJECT_DIR/.env.server.example"
     fi
     cp "$example_file" "$ENV_FILE"
     echo "已从 ${example_file##*/} 生成 ${ENV_FILE##*/}，请先填入真实部署配置。"
@@ -67,6 +87,12 @@ load_env() {
 }
 
 set_proxy_defaults() {
+  if ! is_prod_deploy; then
+    unset NGINX_CONF_FILE || true
+    unset PROXY_HEALTHCHECK_URL || true
+    return
+  fi
+
   if tls_enabled; then
     : "${NGINX_CONF_FILE:=nginx.https.conf}"
     : "${PROXY_HEALTHCHECK_URL:=https://127.0.0.1/healthz/live}"
@@ -84,21 +110,26 @@ configure_profiles() {
   PROXY_SERVICE=proxy
   COMPOSE_PROFILES=()
 
-  if [ "${DEPLOY_ENV:-prod}" = "local" ]; then
+  if is_local_deploy; then
     export COMPOSE_PROJECT_NAME="xuanor_local"
   else
     unset COMPOSE_PROJECT_NAME || true
   fi
 
-  if [ "${DEPLOY_ENV:-prod}" = "local" ] && [ -f "$PROJECT_DIR/docker-compose.local.yml" ]; then
+  if is_local_deploy && [ -f "$PROJECT_DIR/docker-compose.local.yml" ]; then
     COMPOSE_ARGS+=( -f docker-compose.local.yml )
   fi
 
-  if [ "${DEPLOY_ENV:-prod}" = "prod" ]; then
+  if is_prod_deploy; then
     if [ -f "$PROJECT_DIR/docker-compose.prod.yml" ]; then
       COMPOSE_ARGS+=( -f docker-compose.prod.yml )
     fi
     COMPOSE_PROFILES+=(prod)
+  fi
+
+  if is_server_deploy && [ -f "$PROJECT_DIR/docker-compose.server.yml" ]; then
+    COMPOSE_ARGS+=( -f docker-compose.server.yml )
+    PROXY_SERVICE=""
   fi
 
   if is_true "${CHAT_REALTIME_ENABLED:-false}"; then
@@ -112,57 +143,87 @@ configure_profiles() {
     unset COMPOSE_PROFILES || true
   fi
 
-  if compose_cmd config --services >/tmp/xuanor-compose-services.txt 2>/dev/null; then
+  if [ -n "$PROXY_SERVICE" ] && compose_cmd config --services >/tmp/xuanor-compose-services.txt 2>/dev/null; then
     if grep -qx 'proxy' /tmp/xuanor-compose-services.txt; then
       PROXY_SERVICE=proxy
     elif grep -qx 'nginx' /tmp/xuanor-compose-services.txt; then
       PROXY_SERVICE=nginx
+    else
+      PROXY_SERVICE=""
     fi
   fi
 }
 
 ensure_prod_requirements() {
-  if [ "${DEPLOY_ENV:-prod}" = "prod" ] && tls_enabled; then
+  if is_prod_deploy && tls_enabled; then
     [ -f "$PROJECT_DIR/deploy/certs/fullchain.pem" ] || { echo "缺少证书文件: deploy/certs/fullchain.pem；如暂不启用 HTTPS，请在 .env 中设置 TLS_ENABLED=False。"; exit 1; }
     [ -f "$PROJECT_DIR/deploy/certs/privkey.pem" ] || { echo "缺少证书文件: deploy/certs/privkey.pem；如暂不启用 HTTPS，请在 .env 中设置 TLS_ENABLED=False。"; exit 1; }
   fi
 }
 
-validate_env() {
+validate_common_env() {
   [ -n "${SECRET_KEY:-}" ] || { echo "SECRET_KEY 未配置"; exit 1; }
   [ "${SECRET_KEY}" != "replace-with-a-long-random-secret" ] || { echo "SECRET_KEY 仍是示例值，请替换"; exit 1; }
   [ -n "${ALLOWED_HOSTS:-}" ] || { echo "ALLOWED_HOSTS 未配置"; exit 1; }
   [ -n "${CSRF_TRUSTED_ORIGINS:-}" ] || { echo "CSRF_TRUSTED_ORIGINS 未配置"; exit 1; }
   [ -n "${SITE_URL:-}" ] || { echo "SITE_URL 未配置"; exit 1; }
+}
+
+validate_http_security_env() {
+  is_true "${SECURE_SSL_REDIRECT:-False}" && { echo "HTTP 模式必须设置 SECURE_SSL_REDIRECT=False"; exit 1; }
+  is_true "${SESSION_COOKIE_SECURE:-False}" && { echo "HTTP 模式必须设置 SESSION_COOKIE_SECURE=False"; exit 1; }
+  is_true "${CSRF_COOKIE_SECURE:-False}" && { echo "HTTP 模式必须设置 CSRF_COOKIE_SECURE=False"; exit 1; }
+  [ "${SECURE_HSTS_SECONDS:-0}" = "0" ] || { echo "HTTP 模式必须设置 SECURE_HSTS_SECONDS=0"; exit 1; }
+}
+
+validate_prod_env() {
   [ -n "${NGINX_CONF_FILE:-}" ] || { echo "NGINX_CONF_FILE 未配置"; exit 1; }
   [ -n "${PROXY_HEALTHCHECK_URL:-}" ] || { echo "PROXY_HEALTHCHECK_URL 未配置"; exit 1; }
-  if [ "${DEPLOY_ENV:-prod}" = "prod" ]; then
-    [ "${DEBUG:-false}" = "False" ] || [ "${DEBUG:-false}" = "false" ] || { echo "生产环境必须设置 DEBUG=False"; exit 1; }
-    if tls_enabled; then
-      case "${SITE_URL}" in
-        https://*) ;;
-        *) echo "启用 TLS 时 SITE_URL 必须使用 https://"; exit 1 ;;
-      esac
-      [ "${NGINX_CONF_FILE}" = "nginx.https.conf" ] || { echo "启用 TLS 时 NGINX_CONF_FILE 必须设置为 nginx.https.conf"; exit 1; }
-      case "${PROXY_HEALTHCHECK_URL}" in
-        https://127.0.0.1/*) ;;
-        *) echo "启用 TLS 时 PROXY_HEALTHCHECK_URL 必须使用 https://127.0.0.1/..."; exit 1 ;;
-      esac
-    else
-      case "${SITE_URL}" in
-        http://*) ;;
-        *) echo "关闭 TLS 时 SITE_URL 必须使用 http://"; exit 1 ;;
-      esac
-      [ "${NGINX_CONF_FILE}" = "nginx.http.conf" ] || { echo "关闭 TLS 时 NGINX_CONF_FILE 必须设置为 nginx.http.conf"; exit 1; }
-      case "${PROXY_HEALTHCHECK_URL}" in
-        http://127.0.0.1/*) ;;
-        *) echo "关闭 TLS 时 PROXY_HEALTHCHECK_URL 必须使用 http://127.0.0.1/..."; exit 1 ;;
-      esac
-      is_true "${SECURE_SSL_REDIRECT:-False}" && { echo "关闭 TLS 时必须设置 SECURE_SSL_REDIRECT=False"; exit 1; }
-      is_true "${SESSION_COOKIE_SECURE:-False}" && { echo "关闭 TLS 时必须设置 SESSION_COOKIE_SECURE=False"; exit 1; }
-      is_true "${CSRF_COOKIE_SECURE:-False}" && { echo "关闭 TLS 时必须设置 CSRF_COOKIE_SECURE=False"; exit 1; }
-      [ "${SECURE_HSTS_SECONDS:-0}" = "0" ] || { echo "关闭 TLS 时必须设置 SECURE_HSTS_SECONDS=0"; exit 1; }
-    fi
+  [ "${DEBUG:-false}" = "False" ] || [ "${DEBUG:-false}" = "false" ] || { echo "生产环境必须设置 DEBUG=False"; exit 1; }
+  if tls_enabled; then
+    case "${SITE_URL}" in
+      https://*) ;;
+      *) echo "启用 TLS 时 SITE_URL 必须使用 https://"; exit 1 ;;
+    esac
+    [ "${NGINX_CONF_FILE}" = "nginx.https.conf" ] || { echo "启用 TLS 时 NGINX_CONF_FILE 必须设置为 nginx.https.conf"; exit 1; }
+    case "${PROXY_HEALTHCHECK_URL}" in
+      https://127.0.0.1/*) ;;
+      *) echo "启用 TLS 时 PROXY_HEALTHCHECK_URL 必须使用 https://127.0.0.1/..."; exit 1 ;;
+    esac
+  else
+    case "${SITE_URL}" in
+      http://*) ;;
+      *) echo "关闭 TLS 时 SITE_URL 必须使用 http://"; exit 1 ;;
+    esac
+    [ "${NGINX_CONF_FILE}" = "nginx.http.conf" ] || { echo "关闭 TLS 时 NGINX_CONF_FILE 必须设置为 nginx.http.conf"; exit 1; }
+    case "${PROXY_HEALTHCHECK_URL}" in
+      http://127.0.0.1/*) ;;
+      *) echo "关闭 TLS 时 PROXY_HEALTHCHECK_URL 必须使用 http://127.0.0.1/..."; exit 1 ;;
+    esac
+    validate_http_security_env
+  fi
+}
+
+validate_server_env() {
+  [ "${DEBUG:-false}" = "False" ] || [ "${DEBUG:-false}" = "false" ] || { echo "server 模式必须设置 DEBUG=False"; exit 1; }
+  case "${SITE_URL}" in
+    http://*) ;;
+    *) echo "server 模式下 SITE_URL 必须使用 http://<IP或主机>:<端口>"; exit 1 ;;
+  esac
+  [ "${USE_X_FORWARDED_HOST:-False}" = "False" ] || [ "${USE_X_FORWARDED_HOST:-false}" = "false" ] || { echo "server 模式必须设置 USE_X_FORWARDED_HOST=False"; exit 1; }
+  [ "${DB_ENGINE:-sqlite}" = "mysql" ] || { echo "server 模式必须设置 DB_ENGINE=mysql"; exit 1; }
+  [ "${DB_HOST:-}" = "db" ] || { echo "server 模式必须设置 DB_HOST=db"; exit 1; }
+  [ -n "${WEB_PORT:-}" ] || { echo "server 模式必须设置 WEB_PORT"; exit 1; }
+  validate_http_security_env
+}
+
+validate_env() {
+  validate_common_env
+
+  if is_prod_deploy; then
+    validate_prod_env
+  elif is_server_deploy; then
+    validate_server_env
   fi
 }
 
@@ -234,6 +295,12 @@ print_local_hints() {
   echo "首页:  ${SITE_URL}/"
   echo "后台:  ${SITE_URL}/admin/"
   echo "如需演示数据，可执行: ENV_FILE=${ENV_FILE} docker compose ${COMPOSE_ARGS[*]} run --rm web python manage.py seed_product_demo"
+}
+
+print_server_hints() {
+  echo "直连 Docker 部署完成。"
+  echo "首页:  ${SITE_URL}/"
+  echo "后台:  ${SITE_URL}/admin/"
 }
 
 run_release_steps() {
@@ -350,6 +417,46 @@ case "$MODE" in
     print_local_hints
     echo "本地管理员: admin / admin123456"
     ;;
+  deploy-server)
+    export DEPLOY_ENV=server
+    ENV_FILE="${ENV_FILE:-$PROJECT_DIR/.env.server}"
+    check_docker
+    ensure_env_file_path
+    ensure_env
+    load_env
+    set_proxy_defaults
+    configure_profiles
+    ensure_prod_requirements
+    validate_env
+    validate_compose_config
+    run_release_steps
+    run_health_checks
+    start_core_services
+    verify_site_endpoints
+    compose_cmd ps
+    print_server_hints
+    ;;
+  bootstrap-server)
+    export DEPLOY_ENV=server
+    ENV_FILE="${ENV_FILE:-$PROJECT_DIR/.env.server}"
+    check_docker
+    ensure_env_file_path
+    ensure_env
+    load_env
+    set_proxy_defaults
+    configure_profiles
+    ensure_prod_requirements
+    validate_env
+    validate_compose_config
+    run_release_steps
+    run_health_checks
+    run_local_bootstrap
+    start_core_services
+    verify_site_endpoints
+    compose_cmd ps
+    print_server_hints
+    echo "初始化管理员: admin / admin123456"
+    ;;
   migrate)
     check_docker
     ensure_env_file_path
@@ -360,6 +467,20 @@ case "$MODE" in
     run_release_steps
     ;;
   check)
+    check_docker
+    ensure_env_file_path
+    ensure_env
+    load_env
+    set_proxy_defaults
+    configure_profiles
+    ensure_prod_requirements
+    validate_env
+    validate_compose_config
+    run_health_checks
+    ;;
+  check-server)
+    export DEPLOY_ENV=server
+    ENV_FILE="${ENV_FILE:-$PROJECT_DIR/.env.server}"
     check_docker
     ensure_env_file_path
     ensure_env
@@ -429,7 +550,7 @@ case "$MODE" in
     compose_cmd down -v --remove-orphans
     ;;
   *)
-    echo "用法: bash deploy/auto-deploy.sh [deploy|deploy-local|bootstrap-local|migrate|check|exec <command>|status|logs|restart|stop|destroy]"
+    echo "用法: bash deploy/auto-deploy.sh [deploy|deploy-local|bootstrap-local|deploy-server|bootstrap-server|migrate|check|check-server|exec <command>|status|logs|restart|stop|destroy]"
     exit 1
     ;;
 esac

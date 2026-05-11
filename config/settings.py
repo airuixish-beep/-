@@ -15,12 +15,14 @@ SECRET_KEY = env(
     default="dev-only-secret-key-change-me",
 )
 DEBUG = env("DEBUG")
+DEPLOY_ENV = env("DEPLOY_ENV", default="dev").lower()
+TRUST_PROXY_HEADERS = env.bool("TRUST_PROXY_HEADERS", default=DEPLOY_ENV == "prod")
 if not DEBUG and SECRET_KEY in {"", "change-me", "dev-only-secret-key-change-me"}:
     raise RuntimeError("SECRET_KEY must be set to a secure value when DEBUG is False.")
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["127.0.0.1", "localhost"])
 CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
-USE_X_FORWARDED_HOST = env.bool("USE_X_FORWARDED_HOST", default=not DEBUG)
-SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+USE_X_FORWARDED_HOST = env.bool("USE_X_FORWARDED_HOST", default=TRUST_PROXY_HEADERS)
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https") if TRUST_PROXY_HEADERS else None
 SECURE_SSL_REDIRECT = env.bool("SECURE_SSL_REDIRECT", default=not DEBUG)
 SESSION_COOKIE_SECURE = env.bool("SESSION_COOKIE_SECURE", default=not DEBUG)
 CSRF_COOKIE_SECURE = env.bool("CSRF_COOKIE_SECURE", default=not DEBUG)
