@@ -23,6 +23,7 @@ bash deploy/one-click-server.sh
 - 自动生成 `SECRET_KEY`、`DB_PASSWORD`、`MYSQL_ROOT_PASSWORD`
 - 自动识别可用主机地址与端口
 - 自动执行 `bootstrap-server`，把管理员和演示数据一起初始化
+- 在 Ubuntu 上首次执行会拉基础镜像并构建 `web`，第二次及后续重复部署会明显更快
 
 也可以手动执行：
 
@@ -51,7 +52,7 @@ bash deploy/auto-deploy.sh deploy-local
 - 加载正确 env 文件
 - 选择正确 compose 覆盖层
 - 启用需要的 profile
-- 先拉起依赖服务，再执行 `migrate` / `collectstatic`
+- 先拉起依赖服务，再单次构建 `web`，然后执行 `migrate` / `collectstatic`
 - 等待健康检查通过
 - 最后验证首页、后台和静态资源是否真实可访问
 

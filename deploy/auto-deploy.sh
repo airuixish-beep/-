@@ -9,6 +9,9 @@ COMPOSE_ARGS=(-f docker-compose.yml)
 COMPOSE_PROFILES=()
 PROXY_SERVICE=proxy
 ENV_FILE="${ENV_FILE:-}"
+: "${DOCKER_BUILDKIT:=1}"
+: "${COMPOSE_DOCKER_CLI_BUILD:=1}"
+export DOCKER_BUILDKIT COMPOSE_DOCKER_CLI_BUILD
 
 check_docker() {
   command -v docker >/dev/null 2>&1 || { echo "Docker 未安装，请先安装 Docker Desktop 或 Docker Engine"; exit 1; }
@@ -64,6 +67,25 @@ is_server_deploy() {
   [ "$(deploy_env)" = "server" ]
 }
 
+resolve_compose_project_name() {
+  python3 - "$PROJECT_DIR" "$(deploy_env)" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+project_dir = sys.argv[1]
+deploy_env = sys.argv[2].strip() or 'prod'
+name = Path(project_dir).name.lower()
+name = re.sub(r'[^a-z0-9_-]+', '', name)
+name = re.sub(r'^[^a-z0-9]+', '', name)
+if not name:
+    name = 'xuanor'
+if deploy_env == 'local':
+    name = f'{name}_local'
+print(name)
+PY
+}
+
 ensure_env() {
   if [ ! -f "$ENV_FILE" ]; then
     local example_file="$PROJECT_DIR/.env.example"
@@ -112,11 +134,7 @@ configure_profiles() {
   PROXY_SERVICE=proxy
   COMPOSE_PROFILES=()
 
-  if is_local_deploy; then
-    export COMPOSE_PROJECT_NAME="xuanor_local"
-  else
-    unset COMPOSE_PROJECT_NAME || true
-  fi
+  export COMPOSE_PROJECT_NAME="$(resolve_compose_project_name)"
 
   if is_local_deploy && [ -f "$PROJECT_DIR/docker-compose.local.yml" ]; then
     COMPOSE_ARGS+=( -f docker-compose.local.yml )
@@ -233,6 +251,12 @@ validate_compose_config() {
   compose_cmd config >/dev/null
 }
 
+run_preflight_checks() {
+  ensure_prod_requirements
+  validate_env
+  validate_compose_config
+}
+
 wait_for_service_health() {
   local service="$1"
   local timeout="${2:-120}"
@@ -305,18 +329,23 @@ print_server_hints() {
   echo "后台:  ${SITE_URL}/admin/"
 }
 
+build_web_image() {
+  compose_cmd build web
+}
+
 run_release_steps() {
   local release_services=(db)
   if is_true "${CHAT_REALTIME_ENABLED:-false}"; then
     release_services+=(redis)
   fi
 
-  compose_cmd up --build -d "${release_services[@]}"
+  compose_cmd up -d "${release_services[@]}"
   wait_for_service_health db
   if is_true "${CHAT_REALTIME_ENABLED:-false}"; then
     wait_for_service_health redis
   fi
   ensure_local_test_database
+  build_web_image
   compose_cmd run --rm web python manage.py migrate --noinput
   compose_cmd run --rm web python manage.py collectstatic --noinput
 }
@@ -340,8 +369,8 @@ run_health_checks() {
 }
 
 run_local_bootstrap() {
-  compose_cmd run --build --rm web python manage.py seed_product_demo
-  compose_cmd run --build --rm web python manage.py ensure_local_admin --username admin --email admin@example.com --password admin123456
+  compose_cmd run --rm web python manage.py seed_product_demo
+  compose_cmd run --rm web python manage.py ensure_local_admin --username admin --email admin@example.com --password admin123456
 }
 
 start_core_services() {
@@ -349,7 +378,7 @@ start_core_services() {
   if is_true "${CHAT_REALTIME_ENABLED:-false}"; then
     services+=(redis)
   fi
-  compose_cmd up --build -d "${services[@]}"
+  compose_cmd up -d "${services[@]}"
   wait_for_service_health web
 }
 
@@ -361,9 +390,7 @@ case "$MODE" in
     load_env
     set_proxy_defaults
     configure_profiles
-    ensure_prod_requirements
-    validate_env
-    validate_compose_config
+    run_preflight_checks
     run_release_steps
     run_health_checks
     start_core_services
@@ -390,8 +417,7 @@ case "$MODE" in
     load_env
     set_proxy_defaults
     configure_profiles
-    validate_env
-    validate_compose_config
+    run_preflight_checks
     run_release_steps
     run_health_checks
     start_core_services
@@ -408,8 +434,7 @@ case "$MODE" in
     load_env
     set_proxy_defaults
     configure_profiles
-    validate_env
-    validate_compose_config
+    run_preflight_checks
     run_release_steps
     run_health_checks
     run_local_bootstrap
@@ -428,9 +453,7 @@ case "$MODE" in
     load_env
     set_proxy_defaults
     configure_profiles
-    ensure_prod_requirements
-    validate_env
-    validate_compose_config
+    run_preflight_checks
     run_release_steps
     run_health_checks
     start_core_services
@@ -447,9 +470,7 @@ case "$MODE" in
     load_env
     set_proxy_defaults
     configure_profiles
-    ensure_prod_requirements
-    validate_env
-    validate_compose_config
+    run_preflight_checks
     run_release_steps
     run_health_checks
     run_local_bootstrap
@@ -475,10 +496,7 @@ case "$MODE" in
     load_env
     set_proxy_defaults
     configure_profiles
-    ensure_prod_requirements
-    validate_env
-    validate_compose_config
-    run_health_checks
+    run_preflight_checks
     ;;
   check-server)
     export DEPLOY_ENV=server
@@ -489,10 +507,7 @@ case "$MODE" in
     load_env
     set_proxy_defaults
     configure_profiles
-    ensure_prod_requirements
-    validate_env
-    validate_compose_config
-    run_health_checks
+    run_preflight_checks
     ;;
   exec)
     check_docker
